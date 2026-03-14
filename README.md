@@ -1,6 +1,25 @@
-# VibeLink
+<div align="center">
 
-Self-hosted mobile companion for Claude Code. Chat from your phone, get rich dynamic UI, all on your own network.
+```
+ ██╗   ██╗██╗██████╗ ███████╗██╗     ██╗███╗   ██╗██╗  ██╗
+ ██║   ██║██║██╔══██╗██╔════╝██║     ██║████╗  ██║██║ ██╔╝
+ ██║   ██║██║██████╔╝█████╗  ██║     ██║██╔██╗ ██║█████╔╝
+ ╚██╗ ██╔╝██║██╔══██╗██╔══╝  ██║     ██║██║╚██╗██║██╔═██╗
+  ╚████╔╝ ██║██████╔╝███████╗███████╗██║██║ ╚████║██║  ██╗
+   ╚═══╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
+```
+
+**your phone. your claude. your network.**
+
+*self-hosted mobile companion for Claude Code*
+
+[Quick Start](#quick-start) · [Roadmap](#roadmap) · [Dashboard](#dashboard) · [Contributing](CONTRIBUTING.md)
+
+<!-- TODO: add demo GIF/video here — record with phone + dashboard side by side -->
+
+</div>
+
+---
 
 ## What is VibeLink
 
@@ -23,15 +42,18 @@ The project is open source and designed for developers who already use Claude Co
 - [x] **Project Discovery** -- auto-scans your filesystem for git repos and CLAUDE.md projects
 - [x] **Dashboard** -- localhost web UI for managing sessions and debugging (http://localhost:3400/dashboard)
 - [x] **Auth** -- token-based authentication for all connections
+- [x] **Per-Session Permissions** -- toggle to skip permissions or run with default Claude safety checks
 - [x] **Swipe to Delete** -- end sessions from the app (kills Claude process)
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
 
 ### In Progress
 
+- [ ] **Permission approval in app** -- approve/deny tool use from your phone instead of skipping all permissions
 - [ ] **Keyboard handling** -- input bar stays above keyboard on all Android devices
 - [ ] **Streaming polish** -- typing indicator resolves cleanly when Claude finishes
 - [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed inline in chat
 - [ ] **Setup script testing** -- end-to-end validation of setup.sh for fresh installs
+- [ ] **Demo video** -- animated walkthrough for the README
 
 ### Planned
 
