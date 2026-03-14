@@ -55,14 +55,32 @@ export const bridgeApi = {
   getProjects: (): Promise<Project[]> =>
     apiFetch<Project[]>('/projects'),
 
-  getSessions: (): Promise<Session[]> =>
-    apiFetch<Session[]>('/sessions'),
+  getSessions: async (): Promise<Session[]> => {
+    const raw = await apiFetch<Array<{ id: string; projectPath: string; createdAt: string; alive: boolean }>>('/sessions');
+    return raw.map((s) => ({
+      id: s.id,
+      projectPath: s.projectPath,
+      projectName: s.projectPath.split('/').filter(Boolean).pop() ?? s.projectPath,
+      createdAt: s.createdAt,
+      alive: s.alive,
+    }));
+  },
 
-  createSession: (projectPath: string): Promise<Session> =>
-    apiFetch<Session>('/sessions', {
+  createSession: async (projectPath: string): Promise<Session> => {
+    // bridge returns { sessionId, wsUrl } — normalize to our Session shape
+    const raw = await apiFetch<{ sessionId: string; wsUrl: string }>('/sessions', {
       method: 'POST',
       body: JSON.stringify({ projectPath }),
-    }),
+    });
+    const name = projectPath.split('/').filter(Boolean).pop() ?? projectPath;
+    return {
+      id: raw.sessionId,
+      projectPath,
+      projectName: name,
+      createdAt: new Date().toISOString(),
+      alive: true,
+    };
+  },
 
   deleteSession: (id: string): Promise<void> =>
     apiFetch<void>(`/sessions/${id}`, { method: 'DELETE' }),

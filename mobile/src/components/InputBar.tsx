@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { View, TextInput, Pressable, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useDraft } from '../hooks/useDraft';
+import { useMessageStore } from '../store/messages';
 
 interface InputBarProps {
   sessionId: string;
@@ -18,9 +19,20 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
     if (!text || isStreaming) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // add user message to store immediately so it shows in GUI
+    useMessageStore.getState().appendEvent(sessionId, {
+      eventId: Date.now(),
+      type: 'claude_event',
+      event: { type: 'user', message: { content: [{ type: 'text', text }] } },
+    } as any);
+
+    // mark as streaming — claude is thinking
+    useMessageStore.getState().setStreaming(sessionId, true);
+
     onSend(text);
     clearDraft();
-  }, [draft, isStreaming, onSend, clearDraft]);
+  }, [draft, isStreaming, onSend, clearDraft, sessionId]);
 
   return (
     <View className="flex-row items-end gap-2 px-4 py-3 bg-[#0a0a0a] border-t border-[#27272a]">
@@ -30,10 +42,10 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
         placeholderTextColor="#52525b"
         value={draft}
         onChangeText={setDraft}
-        multiline
         autoFocus
-        returnKeyType="default"
+        returnKeyType="send"
         blurOnSubmit={false}
+        onSubmitEditing={handleSend}
       />
       <Pressable
         onPress={handleSend}

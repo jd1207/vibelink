@@ -8,6 +8,7 @@ import { WsClientTracker } from "./ws-client.js";
 import { IpcServer } from "./ipc-server.js";
 import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
+import { dashboardHtml } from "./dashboard.js";
 
 interface AppOptions {
   port?: number;
@@ -55,7 +56,12 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     res.json({ status: "ok" });
   });
 
-  // auth middleware — skip for /health (above), enforce on everything else
+  // dashboard — no auth required, localhost only
+  expressApp.get("/dashboard", (_req, res) => {
+    res.type("html").send(dashboardHtml(port));
+  });
+
+  // auth middleware — skip for /health and /dashboard (above), enforce on everything else
   if (authToken) {
     expressApp.use((req, res, next) => {
       const header = req.headers.authorization ?? "";
@@ -109,7 +115,19 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   });
 
   const server = http.createServer(expressApp);
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
+
+  // handle upgrade manually so /ws/<sessionId> paths work
+  server.on("upgrade", (req, socket, head) => {
+    const url = req.url ?? "";
+    if (!url.startsWith("/ws/")) {
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
 
   wss.on("connection", (ws: WebSocket, req) => {
     const url = req.url ?? "";
@@ -167,15 +185,24 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     });
   });
 
+  // wrap claude events in the protocol envelope the app expects
   sessionManager.on("event", (sessionId: string, buffered: BufferedEvent) => {
-    wsTracker.broadcastToSession(sessionId, buffered);
+    wsTracker.broadcastToSession(sessionId, {
+      eventId: buffered.eventId,
+      type: "claude_event",
+      event: buffered.payload,
+    });
   });
 
-  ipcServer.on("message", (sessionId: string, msg: unknown) => {
+  // forward IPC messages (from MCP server) with their own type
+  ipcServer.on("message", (sessionId: string, msg: Record<string, unknown>) => {
     const session = sessionManager.get(sessionId);
     if (!session) return;
     const buffered = session.buffer.push(msg);
-    wsTracker.broadcastToSession(sessionId, buffered);
+    wsTracker.broadcastToSession(sessionId, {
+      eventId: buffered.eventId,
+      ...msg,
+    });
   });
 
   const shutdown = new ShutdownManager();

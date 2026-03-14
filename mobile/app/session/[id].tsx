@@ -1,13 +1,10 @@
-import React, { useCallback, useMemo } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, Pressable, FlatList, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
-import { FlashList } from '@shopify/flash-list';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
-import { useStickyScroll } from '../../src/hooks/useStickyScroll';
-import { useMessageStore, ChatMessage, ContentBlock } from '../../src/store/messages';
+import { useMessageStore, ChatMessage, ContentBlock, EMPTY_COMPONENTS, EMPTY_TABS } from '../../src/store/messages';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
 import { CliRenderer } from '../../src/components/CliRenderer';
@@ -31,16 +28,17 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = id ?? '';
   const insets = useSafeAreaInsets();
+  const flatListRef = useRef<FlatList<GuiItem>>(null);
+  const shouldAutoScroll = useRef(true);
 
   const [activeTab, setActiveTab] = React.useState('gui');
   const { isConnected, sendMessage, sendRaw } = useWebSocket(sessionId);
   const streamedMessages = useStreaming(sessionId);
-  const isStreaming = useMessageStore((s) => s.isStreaming.get(sessionId) ?? false);
-  const dynamicTabs = useMessageStore((s) => s.tabs.get(sessionId) ?? []);
-  const components = useMessageStore((s) => s.components.get(sessionId));
+  const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
+  const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
+  const components = useMessageStore((s) => s.components[sessionId] ?? EMPTY_COMPONENTS);
 
-  const { scrollRef, onScroll, isAtBottom, scrollToBottom } = useStickyScroll<GuiItem>();
-
+  // normal top-to-bottom list (not inverted)
   const guiItems = useMemo(() => {
     const items: GuiItem[] = [];
     for (const msg of streamedMessages) {
@@ -55,20 +53,47 @@ export default function SessionScreen() {
         items.push({ kind: 'message', data: msg });
       }
     }
-    // append dynamic components at the end of the conversation
-    if (components) {
-      for (const [, comp] of components) {
-        const c = comp as DynamicComponent;
-        if (c.id && c.type) items.push({ kind: 'component', data: c });
+
+    // thinking indicator
+    if (isStreaming) {
+      const last = items[items.length - 1];
+      const hasStreamingMsg = last?.kind === 'message' && last.data.role === 'assistant' && last.data.isStreaming;
+      if (!hasStreamingMsg) {
+        items.push({
+          kind: 'message',
+          data: { id: 'thinking', role: 'assistant', content: '', timestamp: Date.now(), isStreaming: true },
+        });
       }
     }
-    return items.reverse();
-  }, [streamedMessages, components]);
+
+    // dynamic components
+    for (const key of Object.keys(components)) {
+      const c = components[key] as DynamicComponent;
+      if (c?.id && c?.type) items.push({ kind: 'component', data: c });
+    }
+
+    return items;
+  }, [streamedMessages, components, isStreaming]);
+
+  // auto-scroll to bottom when new items arrive
+  useEffect(() => {
+    if (shouldAutoScroll.current && guiItems.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+    }
+  }, [guiItems.length, guiItems[guiItems.length - 1]?.kind === 'message' ? (guiItems[guiItems.length - 1] as any).data?.content?.length : 0]);
+
+  const handleScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    shouldAutoScroll.current = distanceFromBottom < 100;
+  }, []);
 
   const tabNames = useMemo(() => {
     const tabs = [
-      { key: 'cli', label: 'cli' },
-      { key: 'gui', label: 'gui' },
+      { key: 'gui', label: 'chat' },
+      { key: 'cli', label: 'terminal' },
     ];
     for (const tab of dynamicTabs) {
       const t = tab as { id?: string; label?: string };
@@ -103,9 +128,9 @@ export default function SessionScreen() {
   );
 
   const keyExtractor = useCallback((item: GuiItem, index: number) => {
-    if (item.kind === 'message') return `msg-${item.data.id}`;
+    if (item.kind === 'message') return `msg-${item.data.id}-${index}`;
     if (item.kind === 'component') return `comp-${item.data.id}`;
-    return `tool-${item.messageId}-${item.data.id ?? index}`;
+    return `tool-${item.messageId}-${index}`;
   }, []);
 
   return (
@@ -113,9 +138,8 @@ export default function SessionScreen() {
       <Stack.Screen
         options={{ title: 'chat', headerRight: () => <ConnectionBadge /> }}
       />
-      <KeyboardAvoidingView
+      <View
         style={{ flex: 1, backgroundColor: '#0a0a0a', paddingBottom: insets.bottom }}
-        behavior="padding"
       >
         <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={setActiveTab} />
 
@@ -123,32 +147,26 @@ export default function SessionScreen() {
           {activeTab === 'cli' ? (
             <CliRenderer sessionId={sessionId} />
           ) : (
-            <View className="flex-1">
-              <FlashList
-                ref={scrollRef}
-                data={guiItems}
-                renderItem={renderGuiItem}
-                inverted
-                onScroll={onScroll}
-                scrollEventThrottle={16}
-                keyboardDismissMode="interactive"
-                keyExtractor={keyExtractor}
-                contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
-              />
-              {!isAtBottom ? (
-                <Pressable
-                  onPress={scrollToBottom}
-                  className="absolute bottom-4 self-center bg-[#3b82f6] rounded-full px-4 py-2"
-                >
-                  <Text className="text-white text-xs font-medium">jump to bottom</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            <FlatList
+              ref={flatListRef}
+              data={guiItems}
+              renderItem={renderGuiItem}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+              keyboardDismissMode="interactive"
+              keyExtractor={keyExtractor}
+              contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
+              ListEmptyComponent={
+                <View className="flex-1 items-center justify-center pt-32">
+                  <Text className="text-[#52525b] text-base">send a message to start</Text>
+                </View>
+              }
+            />
           )}
         </View>
 
         <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
-      </KeyboardAvoidingView>
+      </View>
     </>
   );
 }

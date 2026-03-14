@@ -29,8 +29,8 @@ describe("EventBuffer", () => {
     buf.push({ type: "d" }); // drops "a"
     const all = buf.getAll();
     expect(all).toHaveLength(3);
-    expect(all[0].payload.type).toBe("b");
-    expect(all[2].payload.type).toBe("d");
+    expect((all[0].payload as Record<string, unknown>).type).toBe("b");
+    expect((all[2].payload as Record<string, unknown>).type).toBe("d");
   });
 
   it("getAfter returns only events with eventId greater than lastEventId", () => {

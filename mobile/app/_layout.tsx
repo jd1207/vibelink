@@ -2,7 +2,8 @@ import "../global.css";
 import React, { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
+// react-native-keyboard-controller removed — incompatible with Expo Go
+// will re-enable when building standalone APK
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import { useConnectionStore } from '../src/store/connection';
@@ -40,7 +41,6 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <KeyboardProvider>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -50,7 +50,6 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: '#0a0a0a' },
           }}
         />
-      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

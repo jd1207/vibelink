@@ -10,7 +10,7 @@ export interface Session {
 }
 
 interface SessionState {
-  sessions: Map<string, Session>;
+  sessions: Record<string, Session>;
   activeSessionId: string | null;
   setSessions: (sessions: Session[]) => void;
   setActiveSession: (id: string | null) => void;
@@ -19,27 +19,24 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
-  sessions: new Map(),
+  sessions: {},
   activeSessionId: null,
 
   setSessions: (sessions) =>
     set({
-      sessions: new Map(sessions.map((s) => [s.id, s])),
+      sessions: Object.fromEntries(sessions.map((s) => [s.id, s])),
     }),
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
   addSession: (session) =>
-    set((state) => {
-      const next = new Map(state.sessions);
-      next.set(session.id, session);
-      return { sessions: next };
-    }),
+    set((state) => ({
+      sessions: { ...state.sessions, [session.id]: session },
+    })),
 
   removeSession: (id) =>
     set((state) => {
-      const next = new Map(state.sessions);
-      next.delete(id);
-      return { sessions: next };
+      const { [id]: _, ...rest } = state.sessions;
+      return { sessions: rest };
     }),
 }));

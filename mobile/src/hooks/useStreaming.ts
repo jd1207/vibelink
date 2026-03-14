@@ -1,34 +1,19 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef } from 'react';
 import { useMessageStore, ClaudeEvent, ChatMessage } from '../store/messages';
 import { parseContentBlocks } from './parseContentBlocks';
 
-const THROTTLE_MS = 16;
-
 export function useStreaming(sessionId: string): ChatMessage[] {
-  const events = useMessageStore((s) => s.events.get(sessionId) ?? []);
-  const [tick, setTick] = useState(0);
+  const eventsLength = useMessageStore((s) => s.events[sessionId]?.length ?? 0);
   const lastProcessedRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const streamBufferRef = useRef('');
-  const pendingUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (events.length === lastProcessedRef.current) return;
-    if (pendingUpdateRef.current) return;
-    pendingUpdateRef.current = setTimeout(() => {
-      pendingUpdateRef.current = null;
-      setTick((t) => t + 1);
-    }, THROTTLE_MS);
+  return useMemo(() => {
+    if (eventsLength === lastProcessedRef.current) {
+      return messagesRef.current;
+    }
 
-    return () => {
-      if (pendingUpdateRef.current) {
-        clearTimeout(pendingUpdateRef.current);
-        pendingUpdateRef.current = null;
-      }
-    };
-  }, [events.length]);
-
-  const messages = useMemo(() => {
+    const events = useMessageStore.getState().events[sessionId] ?? [];
     const result: ChatMessage[] = [...messagesRef.current];
     const newEvents = events.slice(lastProcessedRef.current);
 
@@ -41,10 +26,7 @@ export function useStreaming(sessionId: string): ChatMessage[] {
     lastProcessedRef.current = events.length;
     messagesRef.current = result;
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events.length, tick, sessionId]);
-
-  return messages;
+  }, [eventsLength, sessionId]);
 }
 
 function processEvent(
@@ -69,7 +51,7 @@ function processEvent(
         result[result.length - 1] = { ...lastMsg, content: streamBufferRef.current };
       } else {
         result.push({
-          id: evt.eventId ?? `stream-${Date.now()}`,
+          id: `stream-${Date.now()}`,
           role: 'assistant',
           content: streamBufferRef.current,
           timestamp: Date.now(),
@@ -90,7 +72,7 @@ function processEvent(
         result[result.length - 1] = { ...lastMsg, content: text, contentBlocks: blocks, isStreaming: false };
       } else {
         result.push({
-          id: evt.eventId ?? `asst-${Date.now()}`,
+          id: `asst-${Date.now()}`,
           role: 'assistant',
           content: text,
           contentBlocks: blocks,
@@ -103,18 +85,25 @@ function processEvent(
 
     case 'user': {
       const userEvt = inner as { type: string; message?: { content?: unknown[] | string } };
-      const content = typeof userEvt.message?.content === 'string'
-        ? userEvt.message.content
-        : JSON.stringify(userEvt.message?.content ?? '');
-      const blocks = Array.isArray(userEvt.message?.content)
-        ? parseContentBlocks(userEvt.message?.content)
-        : undefined;
+      let content = '';
+      if (typeof userEvt.message?.content === 'string') {
+        content = userEvt.message.content;
+      } else if (Array.isArray(userEvt.message?.content)) {
+        // extract text from content blocks — this is what the user typed
+        content = userEvt.message.content
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.text ?? '')
+          .join('');
+        // skip tool_result blocks — those are shown separately as tool activity
+        const hasOnlyToolResults = userEvt.message.content.every((b: any) => b.type === 'tool_result');
+        if (hasOnlyToolResults) break; // don't show tool results as user messages
+      }
+      if (!content) break; // skip empty user messages
 
       result.push({
-        id: evt.eventId ?? `user-${Date.now()}`,
+        id: `user-${Date.now()}`,
         role: 'user',
         content,
-        contentBlocks: blocks,
         timestamp: Date.now(),
       });
       break;

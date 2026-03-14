@@ -66,7 +66,9 @@ export class ProjectScanner {
     const hasGit = entries.includes(".git");
     const hasClaudeMd = entries.includes("CLAUDE.md");
 
-    if (hasGit || hasClaudeMd) {
+    // if this is a scan root (depth 0), always recurse — don't treat it as a project
+    // this prevents ~/CLAUDE.md from blocking discovery of ~/projects/*
+    if ((hasGit || hasClaudeMd) && dir !== root) {
       results.push({
         path: dir,
         name: path.basename(dir),

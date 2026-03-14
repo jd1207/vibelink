@@ -3,129 +3,89 @@ import type { ClaudeEvent, ChatMessage, InputRequest } from './message-types';
 
 export type { ClaudeEvent, ChatMessage, ContentBlock, InputRequest } from './message-types';
 
+// use plain objects instead of Maps to avoid getSnapshot reference issues
 interface MessageState {
-  events: Map<string, ClaudeEvent[]>;
-  messages: Map<string, ChatMessage[]>;
-  components: Map<string, Map<string, unknown>>;
-  tabs: Map<string, unknown[]>;
-  isStreaming: Map<string, boolean>;
-  lastEventId: Map<string, string>;
-  inputRequests: Map<string, InputRequest | null>;
-  sessionMetadata: Map<string, Record<string, unknown>>;
+  events: Record<string, ClaudeEvent[]>;
+  components: Record<string, Record<string, unknown>>;
+  tabs: Record<string, unknown[]>;
+  isStreaming: Record<string, boolean>;
+  lastEventId: Record<string, string>;
+  inputRequests: Record<string, InputRequest | null>;
 
   appendEvent: (sessionId: string, event: ClaudeEvent) => void;
-  appendMessage: (sessionId: string, message: ChatMessage) => void;
-  updateLastMessage: (sessionId: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   setComponent: (sessionId: string, componentId: string, component: unknown) => void;
-  setTabs: (sessionId: string, tabs: unknown[]) => void;
+  addTab: (sessionId: string, tab: unknown) => void;
   setStreaming: (sessionId: string, streaming: boolean) => void;
   setLastEventId: (sessionId: string, eventId: string) => void;
   setInputRequest: (sessionId: string, request: InputRequest | null) => void;
-  setSessionMetadata: (sessionId: string, metadata: Record<string, unknown>) => void;
   clearSession: (sessionId: string) => void;
 }
 
+// stable empty values to return from selectors — avoids new reference per render
+const EMPTY_EVENTS: ClaudeEvent[] = [];
+const EMPTY_COMPONENTS: Record<string, unknown> = {};
+const EMPTY_TABS: unknown[] = [];
+
+export { EMPTY_EVENTS, EMPTY_COMPONENTS, EMPTY_TABS };
+
 export const useMessageStore = create<MessageState>((set) => ({
-  events: new Map(),
-  messages: new Map(),
-  components: new Map(),
-  tabs: new Map(),
-  isStreaming: new Map(),
-  lastEventId: new Map(),
-  inputRequests: new Map(),
-  sessionMetadata: new Map(),
+  events: {},
+  components: {},
+  tabs: {},
+  isStreaming: {},
+  lastEventId: {},
+  inputRequests: {},
 
   appendEvent: (sessionId, event) =>
     set((state) => {
-      const next = new Map(state.events);
-      const existing = next.get(sessionId) ?? [];
-      next.set(sessionId, [...existing, event]);
-      return { events: next };
-    }),
-
-  appendMessage: (sessionId, message) =>
-    set((state) => {
-      const next = new Map(state.messages);
-      const existing = next.get(sessionId) ?? [];
-      next.set(sessionId, [...existing, message]);
-      return { messages: next };
-    }),
-
-  updateLastMessage: (sessionId, updater) =>
-    set((state) => {
-      const next = new Map(state.messages);
-      const existing = next.get(sessionId) ?? [];
-      if (existing.length === 0) return state;
-      const updated = [...existing];
-      updated[updated.length - 1] = updater(updated[updated.length - 1]);
-      next.set(sessionId, updated);
-      return { messages: next };
+      const existing = state.events[sessionId] ?? [];
+      return {
+        events: { ...state.events, [sessionId]: [...existing, event] },
+      };
     }),
 
   setComponent: (sessionId, componentId, component) =>
     set((state) => {
-      const nextComponents = new Map(state.components);
-      const sessionComponents = new Map(nextComponents.get(sessionId) ?? new Map());
-      sessionComponents.set(componentId, component);
-      nextComponents.set(sessionId, sessionComponents);
-      return { components: nextComponents };
+      const existing = state.components[sessionId] ?? {};
+      return {
+        components: {
+          ...state.components,
+          [sessionId]: { ...existing, [componentId]: component },
+        },
+      };
     }),
 
-  setTabs: (sessionId, tabs) =>
+  addTab: (sessionId, tab) =>
     set((state) => {
-      const next = new Map(state.tabs);
-      next.set(sessionId, tabs);
-      return { tabs: next };
+      const existing = state.tabs[sessionId] ?? [];
+      return {
+        tabs: { ...state.tabs, [sessionId]: [...existing, tab] },
+      };
     }),
 
   setStreaming: (sessionId, streaming) =>
-    set((state) => {
-      const next = new Map(state.isStreaming);
-      next.set(sessionId, streaming);
-      return { isStreaming: next };
-    }),
+    set((state) => ({
+      isStreaming: { ...state.isStreaming, [sessionId]: streaming },
+    })),
 
   setLastEventId: (sessionId, eventId) =>
-    set((state) => {
-      const next = new Map(state.lastEventId);
-      next.set(sessionId, eventId);
-      return { lastEventId: next };
-    }),
+    set((state) => ({
+      lastEventId: { ...state.lastEventId, [sessionId]: eventId },
+    })),
 
   setInputRequest: (sessionId, request) =>
-    set((state) => {
-      const next = new Map(state.inputRequests);
-      next.set(sessionId, request);
-      return { inputRequests: next };
-    }),
-
-  setSessionMetadata: (sessionId, metadata) =>
-    set((state) => {
-      const next = new Map(state.sessionMetadata);
-      next.set(sessionId, metadata);
-      return { sessionMetadata: next };
-    }),
+    set((state) => ({
+      inputRequests: { ...state.inputRequests, [sessionId]: request },
+    })),
 
   clearSession: (sessionId) =>
     set((state) => {
-      const events = new Map(state.events);
-      const messages = new Map(state.messages);
-      const components = new Map(state.components);
-      const tabs = new Map(state.tabs);
-      const isStreaming = new Map(state.isStreaming);
-      const lastEventId = new Map(state.lastEventId);
-      const inputRequests = new Map(state.inputRequests);
-      const sessionMetadata = new Map(state.sessionMetadata);
-
-      events.delete(sessionId);
-      messages.delete(sessionId);
-      components.delete(sessionId);
-      tabs.delete(sessionId);
-      isStreaming.delete(sessionId);
-      lastEventId.delete(sessionId);
-      inputRequests.delete(sessionId);
-      sessionMetadata.delete(sessionId);
-
-      return { events, messages, components, tabs, isStreaming, lastEventId, inputRequests, sessionMetadata };
+      const { [sessionId]: _e, ...events } = state.events;
+      const { [sessionId]: _c, ...components } = state.components;
+      const { [sessionId]: _t, ...tabs } = state.tabs;
+      const { [sessionId]: _s, ...isStreaming } = state.isStreaming;
+      const { [sessionId]: _l, ...lastEventId } = state.lastEventId;
+      const { [sessionId]: _i, ...inputRequests } = state.inputRequests;
+      return { events, components, tabs, isStreaming, lastEventId, inputRequests };
     }),
 }));

@@ -1,99 +1,143 @@
-import React, { useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { useStickyScroll } from '../hooks/useStickyScroll';
-import { useMessageStore, ClaudeEvent } from '../store/messages';
+import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import { View, Text, FlatList } from 'react-native';
+import { useMessageStore, EMPTY_EVENTS } from '../store/messages';
 
-const EVENT_COLORS: Record<string, string> = {
-  system: 'text-blue-400',
-  stream_event: 'text-[#71717a]',
-  assistant: 'text-emerald-400',
-  tool_use: 'text-orange-400',
-  tool_result: 'text-orange-400',
-  user: 'text-[#fafafa]',
-  result: 'text-emerald-400',
-  error: 'text-red-400',
-  session_error: 'text-red-400',
-  session_ended: 'text-[#a1a1aa]',
-};
+// extract human-readable text from a claude event
+function formatEvent(raw: any): { label: string; text: string; color: string } | null {
+  const evt = raw?.type === 'claude_event' ? raw.event : raw?.payload;
+  if (!evt?.type) return null;
 
-const LABEL_COLORS: Record<string, string> = {
-  system: 'bg-blue-900/50',
-  stream_event: 'bg-[#27272a]',
-  assistant: 'bg-emerald-900/50',
-  tool_use: 'bg-orange-900/50',
-  tool_result: 'bg-orange-900/50',
-  user: 'bg-[#27272a]',
-  result: 'bg-emerald-900/50',
-  error: 'bg-red-900/50',
-  session_error: 'bg-red-900/50',
-  session_ended: 'bg-[#27272a]',
-};
+  switch (evt.type) {
+    case 'system':
+      if (evt.subtype === 'init') {
+        return { label: 'system', text: `session started in ${evt.cwd ?? 'unknown'}`, color: '#60a5fa' };
+      }
+      return null;
 
-function getEventLabel(event: ClaudeEvent): string {
-  if (event.type === 'claude_event' && event.event?.type) {
-    return event.event.type;
+    case 'stream_event': {
+      const delta = evt.event?.delta;
+      if (delta?.type === 'text_delta' && delta.text) {
+        return { label: '', text: delta.text, color: '#fafafa' };
+      }
+      return null;
+    }
+
+    case 'assistant': {
+      const content = evt.message?.content;
+      if (!Array.isArray(content)) return null;
+      const parts: string[] = [];
+      for (const block of content) {
+        if (block.type === 'text') parts.push(block.text);
+        if (block.type === 'tool_use') {
+          const input = JSON.stringify(block.input ?? {});
+          parts.push(`> ${block.name}(${input.length > 80 ? input.substring(0, 80) + '...' : input})`);
+        }
+      }
+      return parts.length ? { label: 'claude', text: parts.join('\n'), color: '#34d399' } : null;
+    }
+
+    case 'user': {
+      const content = evt.message?.content;
+      if (typeof content === 'string') return { label: 'you', text: content, color: '#60a5fa' };
+      if (Array.isArray(content)) {
+        const text = content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+        if (text) return { label: 'you', text, color: '#60a5fa' };
+        const toolResult = content.find((b: any) => b.type === 'tool_result');
+        if (toolResult) {
+          const output = typeof toolResult.content === 'string'
+            ? toolResult.content.substring(0, 300)
+            : JSON.stringify(toolResult.content).substring(0, 300);
+          return { label: 'tool', text: output, color: '#fb923c' };
+        }
+      }
+      return null;
+    }
+
+    case 'result':
+      return { label: 'done', text: `completed in ${evt.duration_ms ?? '?'}ms`, color: '#a1a1aa' };
+
+    default:
+      return null;
   }
-  return event.type;
 }
 
-interface EventRowProps {
-  event: ClaudeEvent;
+interface CliLine {
+  id: string;
+  label: string;
+  text: string;
+  color: string;
 }
-
-const EventRow = React.memo(function EventRow({ event }: EventRowProps) {
-  const label = getEventLabel(event);
-  const textColor = EVENT_COLORS[label] ?? 'text-[#a1a1aa]';
-  const labelBg = LABEL_COLORS[label] ?? 'bg-[#27272a]';
-  const content = JSON.stringify(event, null, 2);
-
-  return (
-    <View className="px-3 py-2 border-b border-[#27272a]/50">
-      <View className={`self-start rounded px-2 py-0.5 mb-1 ${labelBg}`}>
-        <Text className={`text-xs font-mono ${textColor}`}>{label}</Text>
-      </View>
-      <Text className={`font-mono text-xs leading-4 ${textColor}`} selectable>
-        {content}
-      </Text>
-    </View>
-  );
-});
 
 interface CliRendererProps {
   sessionId: string;
 }
 
 export function CliRenderer({ sessionId }: CliRendererProps) {
-  const events = useMessageStore((s) => s.events.get(sessionId) ?? []);
-  const { scrollRef, onScroll, isAtBottom, scrollToBottom } = useStickyScroll<ClaudeEvent>();
+  const events = useMessageStore((s) => s.events[sessionId] ?? EMPTY_EVENTS);
+  const flatListRef = useRef<FlatList<CliLine>>(null);
+  const shouldAutoScroll = useRef(true);
 
-  // inverted list needs reversed data
-  const reversedEvents = [...events].reverse();
+  const lines = useMemo(() => {
+    const result: CliLine[] = [];
+    for (let i = 0; i < events.length; i++) {
+      const formatted = formatEvent(events[i]);
+      if (!formatted) continue;
 
-  const renderItem = useCallback(({ item }: { item: ClaudeEvent }) => (
-    <EventRow event={item} />
+      // merge consecutive stream deltas into one line
+      if (!formatted.label && result.length > 0 && !result[result.length - 1].label) {
+        result[result.length - 1] = {
+          ...result[result.length - 1],
+          text: result[result.length - 1].text + formatted.text,
+        };
+        continue;
+      }
+
+      result.push({ id: `cli-${i}`, ...formatted });
+    }
+    return result;
+  }, [events]);
+
+  // auto-scroll to bottom
+  useEffect(() => {
+    if (shouldAutoScroll.current && lines.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 30);
+    }
+  }, [lines.length, lines[lines.length - 1]?.text?.length]);
+
+  const handleScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    shouldAutoScroll.current = distanceFromBottom < 80;
+  }, []);
+
+  const renderItem = useCallback(({ item }: { item: CliLine }) => (
+    <View className="px-3 py-0.5">
+      {item.label ? (
+        <Text style={{ color: item.color }} className="font-mono text-xs opacity-60">
+          {item.label}
+        </Text>
+      ) : null}
+      <Text style={{ color: item.color }} className="font-mono text-sm leading-5" selectable>
+        {item.text}
+      </Text>
+    </View>
   ), []);
 
   return (
-    <View className="flex-1">
-      <FlashList
-        ref={scrollRef}
-        data={reversedEvents}
-        renderItem={renderItem}
-        inverted
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        keyboardDismissMode="interactive"
-        keyExtractor={(_, index) => `evt-${events.length - 1 - index}`}
-      />
-      {!isAtBottom && (
-        <Pressable
-          onPress={scrollToBottom}
-          className="absolute bottom-4 self-center bg-[#3b82f6] rounded-full px-4 py-2"
-        >
-          <Text className="text-white text-xs font-medium">jump to bottom</Text>
-        </Pressable>
-      )}
-    </View>
+    <FlatList
+      ref={flatListRef}
+      data={lines}
+      renderItem={renderItem}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      keyboardDismissMode="interactive"
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
+      ListEmptyComponent={
+        <View className="flex-1 items-center justify-center pt-32">
+          <Text className="text-[#52525b] text-base font-mono">waiting for events...</Text>
+        </View>
+      }
+    />
   );
 }

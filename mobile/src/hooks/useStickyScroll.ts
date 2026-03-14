@@ -1,18 +1,18 @@
 import { useRef, useState, useCallback } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import type { FlashListRef } from '@shopify/flash-list';
 
 // threshold in points to consider "at bottom" (inverted list: top = bottom)
 const BOTTOM_THRESHOLD = 50;
 
 export function useStickyScroll<T>() {
-  const scrollRef = useRef<FlashListRef<T>>(null);
+  const scrollRef = useRef<any>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset } = event.nativeEvent;
-    // inverted list: offset 0 means at the bottom (newest messages)
-    const atBottom = contentOffset.y <= BOTTOM_THRESHOLD;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    // inverted list: contentOffset.y near 0 means at bottom (newest)
+    // but also check if content is smaller than viewport (always at bottom)
+    const atBottom = contentOffset.y <= BOTTOM_THRESHOLD || contentSize.height <= layoutMeasurement.height;
     setIsAtBottom(atBottom);
   }, []);
 
