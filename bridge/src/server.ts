@@ -14,6 +14,7 @@ interface AppOptions {
   claudeCommand?: string;
   claudeArgs?: string[];
   scanRoots?: string[];
+  authToken?: string;
 }
 
 interface AppInstance {
@@ -48,9 +49,24 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   const expressApp = express();
   expressApp.use(express.json());
 
+  const authToken = options.authToken ?? config.authToken;
+
   expressApp.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // auth middleware — skip for /health (above), enforce on everything else
+  if (authToken) {
+    expressApp.use((req, res, next) => {
+      const header = req.headers.authorization ?? "";
+      const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+      if (token !== authToken) {
+        res.status(401).json({ error: "unauthorized" });
+        return;
+      }
+      next();
+    });
+  }
 
   expressApp.get("/projects", async (_req, res) => {
     const projects = await scanner.scan();
@@ -97,6 +113,17 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
 
   wss.on("connection", (ws: WebSocket, req) => {
     const url = req.url ?? "";
+
+    // ws auth: check ?token= query parameter
+    if (authToken) {
+      const params = new URL(url, "http://localhost").searchParams;
+      const wsToken = params.get("token") ?? "";
+      if (wsToken !== authToken) {
+        ws.close(4001, "unauthorized");
+        return;
+      }
+    }
+
     const match = url.match(/^\/ws\/([^/?]+)/);
     if (!match) {
       ws.close(1008, "missing session id");

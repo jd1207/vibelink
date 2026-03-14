@@ -145,3 +145,41 @@ describe("DELETE /sessions/:id", () => {
     expect(sessions).toHaveLength(0);
   });
 });
+
+describe("auth middleware", () => {
+  const SECRET = "test-secret-token";
+
+  it("allows /health without token even when auth is enabled", async () => {
+    const { baseUrl } = await startApp({ authToken: SECRET });
+    const res = await fetch(`${baseUrl}/health`);
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects /sessions without valid token", async () => {
+    const { baseUrl } = await startApp({ authToken: SECRET });
+    const res = await fetch(`${baseUrl}/sessions`);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects /sessions with wrong token", async () => {
+    const { baseUrl } = await startApp({ authToken: SECRET });
+    const res = await fetch(`${baseUrl}/sessions`, {
+      headers: { Authorization: "Bearer wrong-token" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("allows /sessions with correct bearer token", async () => {
+    const { baseUrl } = await startApp({ authToken: SECRET });
+    const res = await fetch(`${baseUrl}/sessions`, {
+      headers: { Authorization: `Bearer ${SECRET}` },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("allows all endpoints when authToken is empty", async () => {
+    const { baseUrl } = await startApp({ authToken: "" });
+    const res = await fetch(`${baseUrl}/sessions`);
+    expect(res.status).toBe(200);
+  });
+});
