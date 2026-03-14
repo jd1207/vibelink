@@ -16,6 +16,7 @@ interface ClaudeProcessOptions {
   args?: string[];
   cwd: string;
   sessionId: string;
+  skipPermissions?: boolean;
 }
 
 export class ClaudeProcess extends EventEmitter {
@@ -48,7 +49,12 @@ export class ClaudeProcess extends EventEmitter {
     const child = spawn(command, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, VIBELINK_SESSION_ID: sessionId, VIBELINK_BRIDGE_PORT: String(process.env.PORT || '3400') },
+      env: {
+        ...process.env,
+        VIBELINK_SESSION_ID: sessionId,
+        VIBELINK_BRIDGE_PORT: String(process.env.PORT || '3400'),
+        ...(this.options.skipPermissions ? { VIBELINK_SKIP_PERMISSIONS: '1' } : {}),
+      },
     });
 
     this.child = child;

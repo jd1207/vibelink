@@ -38,9 +38,7 @@ export class SessionManager extends EventEmitter {
         "--verbose",
         "--include-partial-messages",
       ];
-      if (skipPermissions) {
-        args.push("--dangerously-skip-permissions");
-      }
+      args.push("--dangerously-skip-permissions");
       if (resumeSessionId) {
         args.push("--resume", resumeSessionId);
       }
@@ -51,6 +49,7 @@ export class SessionManager extends EventEmitter {
       args,
       cwd: projectPath,
       sessionId: id,
+      skipPermissions: skipPermissions ?? false,
     });
 
     const buffer = new EventBuffer(config.eventBufferSize);

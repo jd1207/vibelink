@@ -25,7 +25,7 @@ const ToolActivity = React.memo(function ToolActivity({ block }: ToolActivityPro
           }`}
         >
           {isComplete ? (
-            <Text className="text-emerald-400 text-xs">done</Text>
+            <Text style={{ color: '#34d399', fontSize: 14 }}>✓</Text>
           ) : (
             <ActivityIndicator size="small" color="#a1a1aa" />
           )}

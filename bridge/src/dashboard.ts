@@ -88,6 +88,15 @@ export function dashboardHtml(port: number): string {
   .term-tool-result { color: rgba(194, 129, 48, 0.5); }
   .term-result { color: #71717a; }
 
+  /* diagnostics */
+  .diag-panel { display: none; padding: 12px 16px; background: #111; border-top: 1px solid #27272a; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; }
+  .diag-panel.open { display: block; }
+  .diag-row { display: flex; gap: 12px; margin-bottom: 4px; }
+  .diag-label { color: #71717a; min-width: 120px; }
+  .diag-value { color: #a1a1aa; }
+  .diag-section { color: #3b82f6; font-weight: 600; margin-top: 8px; margin-bottom: 4px; }
+  .diag-log { color: #71717a; white-space: pre-wrap; word-break: break-all; margin-top: 8px; padding: 8px; background: #0a0a0a; border-radius: 4px; max-height: 150px; overflow-y: auto; }
+
   /* console */
   .console-toggle { padding: 4px 16px; background: #18181b; border-top: 1px solid #27272a; cursor: pointer; font-size: 11px; color: #71717a; user-select: none; }
   .console-toggle:hover { color: #a1a1aa; }
@@ -101,7 +110,10 @@ export function dashboardHtml(port: number): string {
 
 <div class="header">
   <h1>vibelink</h1>
-  <span class="uptime" id="uptime"></span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="uptime" id="uptime"></span>
+    <button onclick="restartBridge()" style="background:#f59e0b;color:#000;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">rebuild &amp; restart</button>
+  </div>
 </div>
 
 <div class="main">
@@ -129,7 +141,11 @@ export function dashboardHtml(port: number): string {
         <button onclick="sendMsg()" id="send-btn">send</button>
       </div>
     </div>
-    <div class="console-toggle" onclick="toggleConsole()">console <span id="console-count"></span></div>
+    <div style="display:flex;border-top:1px solid #27272a">
+      <div class="console-toggle" style="flex:1;border-top:none" onclick="toggleConsole()">console <span id="console-count"></span></div>
+      <div class="console-toggle" style="flex:1;border-top:none;border-left:1px solid #27272a" onclick="toggleDiagnostics()">diagnostics</div>
+    </div>
+    <div class="diag-panel" id="diag-panel"></div>
     <div class="console" id="console"></div>
   </div>
 </div>
@@ -409,14 +425,15 @@ function handleEvent(data) {
     }
 
     if (evt.type === 'assistant') {
+      const hadStreamedText = streamBuffer.length > 0;
       finalizeStreamingMsg();
       isStreaming = false;
       document.getElementById('typing').style.display = 'none';
 
-      // extract text content for terminal
       if (evt.message?.content) {
         for (const block of evt.message.content) {
-          if (block.type === 'text' && block.text) {
+          // only add text to terminal if we didn't already stream it
+          if (block.type === 'text' && block.text && !hadStreamedText) {
             appendTerminalEvent({ type: 'assistant', text: block.text });
           }
           if (block.type === 'tool_use') {
@@ -490,6 +507,59 @@ function denyAction() {
     ws.send(JSON.stringify({ type: 'permission_response', requestId: requestId, behavior: 'deny' }));
   }
   document.getElementById('approval').style.display = 'none';
+}
+
+let diagOpen = false;
+async function toggleDiagnostics() {
+  diagOpen = !diagOpen;
+  const panel = document.getElementById('diag-panel');
+  if (!diagOpen) { panel.className = 'diag-panel'; return; }
+  panel.className = 'diag-panel open';
+  panel.innerHTML = '<div style="color:#71717a">loading...</div>';
+  try {
+    const res = await fetch('/diagnostics');
+    const d = await res.json();
+    let html = '<div class="diag-section">bridge</div>';
+    html += '<div class="diag-row"><span class="diag-label">pid</span><span class="diag-value">' + d.pid + '</span></div>';
+    html += '<div class="diag-row"><span class="diag-label">uptime</span><span class="diag-value">' + d.uptime + '</span></div>';
+    html += '<div class="diag-row"><span class="diag-label">port</span><span class="diag-value">' + d.port + '</span></div>';
+    html += '<div class="diag-row"><span class="diag-label">node</span><span class="diag-value">' + d.nodeVersion + '</span></div>';
+    html += '<div class="diag-row"><span class="diag-label">pending perms</span><span class="diag-value">' + d.pendingPermissions + '</span></div>';
+    html += '<div class="diag-section">env</div>';
+    for (const [k,v] of Object.entries(d.env)) {
+      html += '<div class="diag-row"><span class="diag-label">' + k + '</span><span class="diag-value">' + v + '</span></div>';
+    }
+    html += '<div class="diag-section">sessions</div>';
+    if (d.sessions.length === 0) html += '<div class="diag-value">none</div>';
+    for (const s of d.sessions) {
+      html += '<div class="diag-row"><span class="diag-label">' + s.id + '</span><span class="diag-value">' + s.project + ' (' + (s.alive ? '<span style="color:#34d399">alive</span>' : 'dead') + ')</span></div>';
+    }
+    html += '<div class="diag-section">permission hook log (last 20 lines)</div>';
+    html += '<div class="diag-log">' + escapeHtml(d.hookLog) + '</div>';
+    panel.innerHTML = html;
+  } catch(e) { panel.innerHTML = '<div style="color:#f87171">failed: ' + e.message + '</div>'; }
+}
+
+async function restartBridge() {
+  if (!confirm('Rebuild and restart the bridge?')) return;
+  log('rebuilding bridge...', 'ws');
+  try {
+    await fetch('/restart', { method: 'POST' });
+  } catch {}
+  // poll until it comes back
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    try {
+      const r = await fetch('/health');
+      if (r.ok) {
+        clearInterval(poll);
+        log('bridge restarted', 'ws');
+        location.reload();
+      }
+    } catch {}
+    if (attempts > 30) { clearInterval(poll); log('restart timed out', 'error'); }
+  }, 1000);
 }
 
 refreshStatus();

@@ -67,6 +67,40 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     res.type("html").send(dashboardHtml(port));
   });
 
+  // restart endpoint — rebuilds and restarts the bridge process (localhost only, no auth)
+  expressApp.post("/restart", (_req, res) => {
+    res.json({ status: "restarting" });
+    setTimeout(() => {
+      process.exit(0);
+    }, 200);
+  });
+
+  // diagnostics endpoint — shows bridge state, env, hook log
+  expressApp.get("/diagnostics", async (_req, res) => {
+    const { readFile } = await import("fs/promises");
+    let hookLog = "";
+    try { hookLog = await readFile("/tmp/vibelink-hook.log", "utf-8"); } catch { hookLog = "(no hook log)"; }
+    const sessions = sessionManager.list();
+    res.json({
+      uptime: `${Math.floor((Date.now() - startTime) / 1000)}s`,
+      port,
+      nodeVersion: process.version,
+      pid: process.pid,
+      env: {
+        PORT: process.env.PORT ?? "(unset)",
+        AUTH_TOKEN: process.env.AUTH_TOKEN ? "(set)" : "(unset)",
+        IPC_SOCKET_PATH: process.env.IPC_SOCKET_PATH ?? "/tmp/vibelink.sock",
+      },
+      sessions: sessions.map(s => ({
+        id: s.id.slice(0, 8),
+        project: s.projectPath.split("/").pop(),
+        alive: s.alive,
+      })),
+      pendingPermissions: pendingPermissions.size,
+      hookLog: hookLog.split("\n").slice(-20).join("\n"),
+    });
+  });
+
   // permission request endpoint — called by the PermissionRequest hook (localhost only, no auth)
   expressApp.post("/permissions/request", (req, res) => {
     const { sessionId, requestId, toolName, toolInput } = req.body as {
