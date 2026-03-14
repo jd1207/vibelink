@@ -1,21 +1,15 @@
 <div align="center">
 
-```
- ██╗   ██╗██╗██████╗ ███████╗██╗     ██╗███╗   ██╗██╗  ██╗
- ██║   ██║██║██╔══██╗██╔════╝██║     ██║████╗  ██║██║ ██╔╝
- ██║   ██║██║██████╔╝█████╗  ██║     ██║██╔██╗ ██║█████╔╝
- ╚██╗ ██╔╝██║██╔══██╗██╔══╝  ██║     ██║██║╚██╗██║██╔═██╗
-  ╚████╔╝ ██║██████╔╝███████╗███████╗██║██║ ╚████║██║  ██╗
-   ╚═══╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
-```
+<img src="assets/banner.svg" alt="VibeLink" width="100%"/>
 
-**your phone. your claude. your network.**
+<br/>
 
-*self-hosted mobile companion for Claude Code*
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-22%2B-brightgreen.svg)](https://nodejs.org)
+[![React Native](https://img.shields.io/badge/react_native-expo_54-blueviolet.svg)](https://expo.dev)
+[![TypeScript](https://img.shields.io/badge/typescript-strict-blue.svg)](https://www.typescriptlang.org)
 
 [Quick Start](#quick-start) · [Roadmap](#roadmap) · [Dashboard](#dashboard) · [Contributing](CONTRIBUTING.md)
-
-<!-- TODO: add demo GIF/video here — record with phone + dashboard side by side -->
 
 </div>
 
@@ -53,7 +47,6 @@ The project is open source and designed for developers who already use Claude Co
 - [ ] **Streaming polish** -- typing indicator resolves cleanly when Claude finishes
 - [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed inline in chat
 - [ ] **Setup script testing** -- end-to-end validation of setup.sh for fresh installs
-- [ ] **Demo video** -- animated walkthrough for the README
 
 ### Planned
 
