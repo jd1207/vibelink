@@ -1,0 +1,33 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+case "$1" in
+  start)
+    if systemctl is-active vibelink >/dev/null 2>&1; then
+      echo "vibelink is already running"
+    else
+      sudo systemctl start vibelink
+      echo "vibelink started"
+    fi
+    ;;
+  stop)
+    sudo systemctl stop vibelink
+    echo "vibelink stopped"
+    ;;
+  status)
+    systemctl status vibelink --no-pager 2>/dev/null || echo "vibelink service not installed"
+    if command -v curl >/dev/null; then
+      echo ""
+      curl -s http://localhost:3400/debug 2>/dev/null | head -20 || true
+    fi
+    ;;
+  regenerate-token)
+    TOKEN=$(openssl rand -hex 32)
+    sed -i "s/AUTH_TOKEN=.*/AUTH_TOKEN=$TOKEN/" "$SCRIPT_DIR/bridge/.env"
+    sudo systemctl restart vibelink 2>/dev/null || true
+    echo "new token: $TOKEN"
+    ;;
+  *)
+    echo "usage: vibelink {start|stop|status|regenerate-token}"
+    ;;
+esac
