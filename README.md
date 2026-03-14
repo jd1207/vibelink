@@ -37,7 +37,6 @@ The project is open source and designed for developers who already use Claude Co
 - [x] **Dashboard** -- localhost web UI for managing sessions and debugging (http://localhost:3400/dashboard)
 - [x] **Auth** -- token-based authentication for all connections
 - [x] **Per-Session Permissions** -- toggle to skip permissions or run with default Claude safety checks
-- [x] **Swipe to Delete** -- end sessions from the app (kills Claude process)
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
 
 ### In Progress
