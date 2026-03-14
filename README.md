@@ -10,7 +10,40 @@ Everything runs on your machine and your Tailscale network. VibeLink spawns the 
 
 The project is open source and designed for developers who already use Claude Code and want a mobile-friendly way to interact with it. The Android APK is built locally (no app store required), and the entire codebase is cross-platform TypeScript.
 
-## Architecture Overview
+## Roadmap
+
+### Built
+
+- [x] **Bridge Server** -- Node.js server that spawns Claude CLI subprocesses, manages sessions, streams NDJSON over WebSocket
+- [x] **MCP Server** -- registered with Claude Code, provides render_ui, create_tab, update_ui, request_input, send_notification tools
+- [x] **Mobile App** -- React Native (Expo) with session list, project picker, chat with streaming responses
+- [x] **Chat View** -- messages rendered as markdown with code blocks, tool activity indicators, streaming text
+- [x] **Terminal View** -- raw event stream showing exactly what Claude is doing
+- [x] **Multi-Session** -- run multiple Claude sessions in different project directories simultaneously
+- [x] **Project Discovery** -- auto-scans your filesystem for git repos and CLAUDE.md projects
+- [x] **Dashboard** -- localhost web UI for managing sessions and debugging (http://localhost:3400/dashboard)
+- [x] **Auth** -- token-based authentication for all connections
+- [x] **Swipe to Delete** -- end sessions from the app (kills Claude process)
+- [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
+
+### In Progress
+
+- [ ] **Keyboard handling** -- input bar stays above keyboard on all Android devices
+- [ ] **Streaming polish** -- typing indicator resolves cleanly when Claude finishes
+- [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed inline in chat
+- [ ] **Setup script testing** -- end-to-end validation of setup.sh for fresh installs
+
+### Planned
+
+- [ ] **Localhost preview** -- see your dev server running on your phone via stream_preview MCP tool
+- [ ] **Auto-discovery** -- find the Bridge automatically via mDNS or Tailscale MagicDNS (no manual IP entry)
+- [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
+- [ ] **Camera/file uploads** -- send photos and files to Claude
+- [ ] **Push notifications** -- get notified when Claude finishes a long task
+- [ ] **GitHub integration** -- clone repos directly from the app
+- [ ] **iOS build guide** -- contributor documentation for building on Mac
+
+## Architecture
 
 ```
 +-------------------+                         +------------------------------+
@@ -19,8 +52,8 @@ The project is open source and designed for developers who already use Claude Co
 |  App (Phone)      |<--- WebSocket --------->|                              |
 |                   |<--- REST/HTTP --------->|  - REST API (/projects, etc) |
 |  - Session list   |                         |  - WebSocket (per-session)   |
-|  - CLI tab        |                         |  - Event buffer (200 events) |
-|  - GUI tab        |                         |  - Project scanner           |
+|  - Chat view      |                         |  - Event buffer (200 events) |
+|  - Terminal view   |                         |  - Project scanner           |
 |  - Dynamic tabs   |                         |                              |
 |                   |                         |  Spawns per session:         |
 +-------------------+                         |  +- claude CLI subprocess    |
@@ -28,12 +61,10 @@ The project is open source and designed for developers who already use Claude Co
                                               +------------------------------+
                                                             ^
                                                             | Unix socket IPC
-                                                            | (/tmp/vibelink.sock)
                                               +------------------------------+
                                               |                              |
                                               |  VibeLink MCP Server         |
-                                              |  (stdio, auto-launched       |
-                                              |   by Claude per session)     |
+                                              |  (auto-launched by Claude)   |
                                               |                              |
                                               |  Tools:                      |
                                               |  - render_ui, update_ui      |
@@ -43,11 +74,6 @@ The project is open source and designed for developers who already use Claude Co
                                               +------------------------------+
 ```
 
-**Data flows:**
-- You type on your phone --> WebSocket --> Bridge --> Claude CLI stdin (NDJSON)
-- Claude responds --> stdout NDJSON --> Bridge --> WebSocket --> your phone
-- Claude calls MCP tools --> MCP Server --> IPC socket --> Bridge --> WebSocket --> your phone
-
 ## Requirements
 
 | Requirement | Version | Notes |
@@ -55,13 +81,12 @@ The project is open source and designed for developers who already use Claude Co
 | Node.js | 22+ | Bridge and MCP server runtime |
 | Claude Code CLI | Latest | Must be installed and authenticated |
 | Tailscale | Any | On both workstation and phone, same account |
-| Java | 17+ | Only needed for building Android APK (Gradle) |
-| Mac + Xcode | Latest | Only needed for iOS builds |
+| Java | 17+ | Only needed for building Android APK |
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/user/vibelink && cd vibelink
+git clone https://github.com/jd1207/vibelink && cd vibelink
 ./setup.sh
 ```
 
@@ -70,151 +95,80 @@ The setup script:
 2. Builds Bridge Server and MCP Server
 3. Registers the MCP server with Claude Code
 4. Generates auth token in `bridge/.env`
-5. Optionally installs a systemd service
+5. Optionally installs a systemd service for always-on access
 6. Optionally builds the Android APK
-7. Prints your Tailscale IP, a QR code, and connection instructions
-
-## Android Setup
-
-### Building the APK
-
-```bash
-cd mobile
-npm install
-npx expo prebuild --platform android
-cd android
-./gradlew assembleRelease
-```
-
-The APK is output to `android/app/build/outputs/apk/release/`.
-
-### Installing on your phone
-
-| Method | How |
-|---|---|
-| QR over Tailscale | Bridge serves the APK at `http://<tailscale-ip>:3400/app.apk` |
-| USB | `adb install path/to/app-release.apk` |
-| File share | Send the APK directly to your phone |
-
-On first launch, enter your Bridge URL (the Tailscale IP + port printed during setup). The app saves this permanently.
-
-## iOS Setup
-
-iOS builds require a Mac with Xcode and an Apple Developer account. The codebase is fully cross-platform -- the same TypeScript/React Native code runs on both platforms.
-
-```bash
-cd mobile
-npm install
-npx expo prebuild --platform ios
-npx expo run:ios --device --configuration Release
-```
-
-Contributor guide for iOS builds is planned. If you have a Mac and want to help, contributions are welcome.
+7. Prints your connection info and instructions
 
 ## Daily Use
 
 ```bash
 vibelink start      # start the bridge as a background service
-vibelink stop       # graceful shutdown (notifies clients, kills subprocesses)
-vibelink status     # check if running, active sessions, connected clients
+vibelink stop       # graceful shutdown
+vibelink status     # check running sessions and connected clients
 ```
 
-These are wrappers around `systemctl`. Once the bridge is running, just open the app on your phone:
+Once the bridge is running, open the app on your phone. No terminal needed for daily use.
 
-1. **Session list** -- see active and recent sessions
-2. **New Chat** -- pick a project directory, start a session
-3. **Chat** -- type messages, see streaming responses, interact with dynamic UI
+## Dashboard
 
-No terminal required for daily use.
+Open **http://localhost:3400/dashboard** in your browser to see:
+- Active sessions with process status
+- Connected clients
+- Embedded chat (synced with your phone)
+- Terminal view of raw Claude events
+- Session management (end sessions, end all)
+
+## Android Setup
+
+```bash
+cd mobile && npm install
+npx expo prebuild --platform android
+cd android && ./gradlew assembleRelease
+```
+
+APK output: `android/app/build/outputs/apk/release/`
+
+Install via USB (`adb install`), QR code over Tailscale, or send the file directly.
+
+## iOS Setup
+
+The codebase is fully cross-platform. iOS builds require a Mac with Xcode:
+
+```bash
+cd mobile && npm install
+npx expo prebuild --platform ios
+npx expo run:ios --device --configuration Release
+```
 
 ## Security and Privacy
 
-- **Self-hosted**: everything runs on your workstation. No cloud, no third-party servers.
-- **Tailscale**: all traffic between phone and workstation is end-to-end encrypted via WireGuard.
-- **Token auth**: a 256-bit token generated during setup. Sent as a Bearer token on every request.
-- **No telemetry**: no analytics, no tracking, no external API calls (beyond Claude's own API usage).
-- **Local APK**: the Android app is built and signed on your machine with your own keystore.
-- **No data leaves your network**: code and conversations stay between your phone and workstation.
+- **Self-hosted**: everything runs on your workstation
+- **Tailscale**: E2E encrypted via WireGuard
+- **Token auth**: 256-bit token on every request
+- **No telemetry**: no analytics, no tracking, no external calls
+- **Local APK**: built and signed on your machine
 
-## How It Works
-
-VibeLink takes a **CLI-first** approach. The Bridge Server spawns the real Claude Code CLI binary as a subprocess with bidirectional NDJSON streaming. This means all your existing Claude Code configuration -- project CLAUDE.md files, globally registered MCP servers, skills, hooks, and settings -- works automatically.
-
-The MCP server is a separate process that gives Claude tools to push rich UI to your phone (`render_ui`, `create_tab`, `request_input`, etc.). It's registered once with `claude mcp add` and auto-launched by Claude on every session. The MCP server communicates with the Bridge over a Unix socket, and the Bridge forwards everything to your phone over WebSocket.
-
-Claude gets no special system prompt from VibeLink. It runs as the normal CLI in the chosen project directory. The only addition is the VibeLink MCP tools.
+See [SECURITY.md](SECURITY.md) for details.
 
 ## Project Structure
 
 ```
 vibelink/
-+-- bridge/                    Bridge Server (Node.js + TypeScript)
-|   +-- src/                   ~650 lines across 10 source files
-|   +-- package.json
-|   +-- tsconfig.json
-+-- mcp-server/                VibeLink MCP Server (Node.js + TypeScript)
-|   +-- src/                   ~310 lines across 7 source files
-|   +-- package.json
-|   +-- tsconfig.json
-+-- mobile/                    React Native App (Expo + TypeScript)
-|   +-- app/                   Expo Router screens
-|   +-- src/                   Components, hooks, stores, services
-|   +-- package.json
-|   +-- app.json
-+-- docs/                      Design specs and documentation
-+-- setup.sh                   One-command setup script
-+-- CLAUDE.md                  Project-level Claude Code config
+  bridge/         Bridge Server (Node.js + TypeScript)
+  mcp-server/     MCP Server for Claude Code
+  mobile/         React Native App (Expo + TypeScript)
+  setup.sh        One-command setup script
+  vibelink        CLI wrapper (start/stop/status)
 ```
 
-See individual package READMEs for detailed architecture:
-- [bridge/README.md](bridge/README.md) -- Bridge Server internals, REST API, WebSocket protocol
-- [mcp-server/README.md](mcp-server/README.md) -- MCP tools, IPC protocol, registration
-- [mobile/README.md](mobile/README.md) -- App screens, design system, state management
+See package READMEs for internals:
+- [bridge/README.md](bridge/README.md)
+- [mcp-server/README.md](mcp-server/README.md)
+- [mobile/README.md](mobile/README.md)
 
 ## Contributing
 
-### Building each package
-
-```bash
-# bridge
-cd bridge && npm install && npm run build
-npm run dev          # development with hot reload
-npm test             # run tests
-
-# mcp server
-cd mcp-server && npm install && npm run build
-npm run dev          # development
-npm test             # run tests
-
-# mobile
-cd mobile && npm install
-npx expo start       # development server (Expo Go or dev client)
-```
-
-### Registering the MCP server
-
-```bash
-claude mcp add vibelink --scope user -- node /path/to/vibelink/mcp-server/dist/server.js
-```
-
-### Debug workflow
-
-```bash
-# bridge logs
-journalctl -u vibelink -f
-
-# bridge state dump
-curl http://localhost:3400/debug
-
-# claude + mcp debug
-claude --debug "api,mcp"
-```
-
-### Phase 1 scope
-
-The current implementation covers the full stack: Bridge Server, MCP Server (render_ui, tabs, input, notification tools), React Native app (session list, project picker, CLI + GUI tabs), setup script, and debug workflow.
-
-See the [Phase 1 design spec](docs/superpowers/specs/2026-03-14-vibelink-phase1-design.md) for the full specification.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions and code style.
 
 ## License
 

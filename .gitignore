@@ -7,3 +7,9 @@ mobile/ios/
 .expo/
 *.apk
 .DS_Store
+
+# internal development docs (not for public repo)
+CLAUDE.md
+docs/superpowers/
+*.docx
+vibelink-architecture-v2.jsx
