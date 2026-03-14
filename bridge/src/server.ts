@@ -42,6 +42,12 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   const wsTracker = new WsClientTracker();
   wsTracker.start();
 
+  // pending permission requests from Claude's PermissionRequest hook
+  const pendingPermissions = new Map<string, {
+    resolve: (result: { behavior: string; message?: string }) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>();
+
   const ipcServer = new IpcServer();
   await ipcServer.start(config.ipcSocketPath).catch(() => {
     // ipc socket failure is non-fatal in test/dev
@@ -59,6 +65,42 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   // dashboard — no auth required, localhost only
   expressApp.get("/dashboard", (_req, res) => {
     res.type("html").send(dashboardHtml(port));
+  });
+
+  // permission request endpoint — called by the PermissionRequest hook (localhost only, no auth)
+  expressApp.post("/permissions/request", (req, res) => {
+    const { sessionId, requestId, toolName, toolInput } = req.body as {
+      sessionId?: string;
+      requestId?: string;
+      toolName?: string;
+      toolInput?: unknown;
+    };
+    if (!sessionId || !requestId) {
+      res.status(400).json({ error: "sessionId and requestId required" });
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      pendingPermissions.delete(requestId);
+      res.json({ behavior: "deny", message: "Approval timed out" });
+    }, 5 * 60 * 1000); // 5 minute timeout
+
+    pendingPermissions.set(requestId, {
+      resolve: (result) => {
+        clearTimeout(timeout);
+        pendingPermissions.delete(requestId);
+        res.json(result);
+      },
+      timeout,
+    });
+
+    // broadcast to all WS clients for this session
+    wsTracker.broadcastToSession(sessionId, {
+      type: "permission_request",
+      requestId,
+      toolName: toolName || "unknown",
+      toolInput: toolInput || {},
+    });
   });
 
   // auth middleware — skip for /health and /dashboard (above), enforce on everything else
@@ -183,6 +225,17 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
         return;
       }
 
+      if (msg.type === "permission_response") {
+        const pending = pendingPermissions.get(String(msg.requestId));
+        if (pending) {
+          pending.resolve({
+            behavior: String(msg.behavior || "deny"),
+            message: typeof msg.message === "string" ? msg.message : undefined,
+          });
+        }
+        return;
+      }
+
       if (msg.type === "ui_interaction" || msg.type === "input_response") {
         ipcServer.sendToSession(sessionId, msg);
       }
@@ -210,6 +263,13 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   });
 
   const shutdown = new ShutdownManager();
+  shutdown.register("pending permissions", async () => {
+    for (const [id, pending] of pendingPermissions) {
+      clearTimeout(pending.timeout);
+      pending.resolve({ behavior: "deny", message: "Server shutting down" });
+    }
+    pendingPermissions.clear();
+  });
   shutdown.register("ws tracker", async () => wsTracker.stop());
   shutdown.register("session manager", async () => sessionManager.shutdownAll());
   shutdown.register("ipc server", async () => ipcServer.stop());

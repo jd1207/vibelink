@@ -48,7 +48,7 @@ export class ClaudeProcess extends EventEmitter {
     const child = spawn(command, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, VIBELINK_SESSION_ID: sessionId },
+      env: { ...process.env, VIBELINK_SESSION_ID: sessionId, VIBELINK_BRIDGE_PORT: String(process.env.PORT || '3400') },
     });
 
     this.child = child;

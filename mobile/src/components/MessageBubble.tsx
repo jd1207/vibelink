@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Animated } from 'react-native';
 import { ChatMessage } from '../store/messages';
 import { MarkdownContent } from './MarkdownRenderer';
 
@@ -29,7 +29,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
         }`}
       >
         <MarkdownContent text={message.content} isUser={isUser} />
-        {message.isStreaming ? <StreamingDot /> : null}
+        {message.isStreaming ? <AnimatedDots /> : null}
       </View>
       <Text className="text-[#52525b] text-[10px] mt-1 px-1">{timeStr}</Text>
     </View>
@@ -38,11 +38,38 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
 
 export default MessageBubble;
 
-function StreamingDot() {
+function AnimatedDots() {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const bounce = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: -4, duration: 250, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 250, useNativeDriver: true }),
+        ])
+      );
+
+    const a1 = bounce(dot1, 0);
+    const a2 = bounce(dot2, 150);
+    const a3 = bounce(dot3, 300);
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [dot1, dot2, dot3]);
+
+  const dotStyle = { width: 5, height: 5, borderRadius: 3, backgroundColor: '#3b82f6', opacity: 0.6 };
+
   return (
-    <View className="flex-row items-center mt-1 gap-1">
-      <View className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] opacity-60" />
-      <Text className="text-[#52525b] text-[10px]">typing</Text>
+    <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, paddingVertical: 2 }}>
+      <Animated.View style={[dotStyle, { transform: [{ translateY: dot1 }] }]} />
+      <Animated.View style={[dotStyle, { transform: [{ translateY: dot2 }] }]} />
+      <Animated.View style={[dotStyle, { transform: [{ translateY: dot3 }] }]} />
     </View>
   );
 }

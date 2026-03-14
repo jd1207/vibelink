@@ -11,13 +11,16 @@ interface MessageState {
   isStreaming: Record<string, boolean>;
   lastEventId: Record<string, string>;
   inputRequests: Record<string, InputRequest | null>;
+  permissionRequests: Record<string, { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null>;
 
   appendEvent: (sessionId: string, event: ClaudeEvent) => void;
   setComponent: (sessionId: string, componentId: string, component: unknown) => void;
+  updateComponent: (sessionId: string, componentId: string, updates: Record<string, unknown>) => void;
   addTab: (sessionId: string, tab: unknown) => void;
   setStreaming: (sessionId: string, streaming: boolean) => void;
   setLastEventId: (sessionId: string, eventId: string) => void;
   setInputRequest: (sessionId: string, request: InputRequest | null) => void;
+  setPermissionRequest: (sessionId: string, request: { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null) => void;
   clearSession: (sessionId: string) => void;
 }
 
@@ -35,6 +38,7 @@ export const useMessageStore = create<MessageState>((set) => ({
   isStreaming: {},
   lastEventId: {},
   inputRequests: {},
+  permissionRequests: {},
 
   appendEvent: (sessionId, event) =>
     set((state) => {
@@ -51,6 +55,21 @@ export const useMessageStore = create<MessageState>((set) => ({
         components: {
           ...state.components,
           [sessionId]: { ...existing, [componentId]: component },
+        },
+      };
+    }),
+
+  updateComponent: (sessionId, componentId, updates) =>
+    set((state) => {
+      const existing = state.components[sessionId]?.[componentId];
+      if (!existing || typeof existing !== 'object') return state;
+      return {
+        components: {
+          ...state.components,
+          [sessionId]: {
+            ...state.components[sessionId],
+            [componentId]: { ...(existing as Record<string, unknown>), ...updates },
+          },
         },
       };
     }),
@@ -78,6 +97,11 @@ export const useMessageStore = create<MessageState>((set) => ({
       inputRequests: { ...state.inputRequests, [sessionId]: request },
     })),
 
+  setPermissionRequest: (sessionId, request) =>
+    set((state) => ({
+      permissionRequests: { ...state.permissionRequests, [sessionId]: request },
+    })),
+
   clearSession: (sessionId) =>
     set((state) => {
       const { [sessionId]: _e, ...events } = state.events;
@@ -86,6 +110,7 @@ export const useMessageStore = create<MessageState>((set) => ({
       const { [sessionId]: _s, ...isStreaming } = state.isStreaming;
       const { [sessionId]: _l, ...lastEventId } = state.lastEventId;
       const { [sessionId]: _i, ...inputRequests } = state.inputRequests;
-      return { events, components, tabs, isStreaming, lastEventId, inputRequests };
+      const { [sessionId]: _p, ...permissionRequests } = state.permissionRequests;
+      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionRequests };
     }),
 }));

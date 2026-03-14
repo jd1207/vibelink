@@ -9,6 +9,11 @@ export interface ClaudeEvent {
   requestId?: string;
   prompt?: string;
   options?: string[];
+  toolName?: string;
+  toolInput?: unknown;
+  componentId?: string;
+  updates?: unknown;
+  tab?: unknown;
   error?: string;
   resumable?: boolean;
   reason?: string;

@@ -7,7 +7,9 @@ export function useEventDispatch(sessionId: string) {
   const setStreaming = useMessageStore((s) => s.setStreaming);
   const setLastEventId = useMessageStore((s) => s.setLastEventId);
   const setComponent = useMessageStore((s) => s.setComponent);
+  const updateComponent = useMessageStore((s) => s.updateComponent);
   const setInputRequest = useMessageStore((s) => s.setInputRequest);
+  const setPermissionRequest = useMessageStore((s) => s.setPermissionRequest);
   const addTab = useMessageStore((s) => s.addTab);
 
   const dispatch = useCallback((data: ClaudeEvent) => {
@@ -33,6 +35,11 @@ export function useEventDispatch(sessionId: string) {
           if (comp.id) setComponent(sessionId, comp.id, data.component);
         }
         break;
+      case 'ui_modify':
+        if (data.componentId && data.updates && typeof data.updates === 'object') {
+          updateComponent(sessionId, String(data.componentId), data.updates as Record<string, unknown>);
+        }
+        break;
       case 'tab_create':
         if (data.tab) addTab(sessionId, data.tab);
         break;
@@ -45,12 +52,21 @@ export function useEventDispatch(sessionId: string) {
           });
         }
         break;
+      case 'permission_request':
+        if (data.requestId) {
+          setPermissionRequest(sessionId, {
+            requestId: String(data.requestId),
+            toolName: String(data.toolName ?? 'unknown'),
+            toolInput: (data.toolInput as Record<string, unknown>) ?? {},
+          });
+        }
+        break;
       case 'session_error':
       case 'session_ended':
         setStreaming(sessionId, false);
         break;
     }
-  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, setInputRequest, addTab]);
+  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, setPermissionRequest, addTab]);
 
   return dispatch;
 }

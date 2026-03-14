@@ -42,7 +42,7 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
         placeholderTextColor="#52525b"
         value={draft}
         onChangeText={setDraft}
-        autoFocus
+        autoFocus={false}
         returnKeyType="send"
         blurOnSubmit={false}
         onSubmitEditing={handleSend}

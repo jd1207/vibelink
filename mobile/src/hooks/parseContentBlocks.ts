@@ -8,7 +8,7 @@ export function parseContentBlocks(content: unknown[] | undefined): ContentBlock
     return {
       type: (b.type as ContentBlock['type']) ?? 'text',
       text: b.text as string | undefined,
-      id: b.id as string | undefined,
+      id: (b.id ?? b.tool_use_id) as string | undefined,
       name: b.name as string | undefined,
       input: b.input,
       content: typeof b.content === 'string' ? b.content : undefined,

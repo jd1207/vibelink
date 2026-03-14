@@ -49,7 +49,12 @@ export function dashboardHtml(port: number): string {
   .msg-tool { font-size: 12px; color: #fb923c; padding: 4px 12px; font-family: monospace; }
   .msg-system { font-size: 11px; color: #52525b; text-align: center; padding: 4px; }
   .msg-label { font-size: 10px; color: #71717a; margin-bottom: 2px; }
-  .typing { color: #71717a; font-size: 13px; padding: 4px 16px; font-style: italic; }
+  .typing { color: #71717a; font-size: 13px; padding: 4px 16px; font-style: italic; display: none; }
+  .typing-dots { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+  .typing-dots span { width: 4px; height: 4px; border-radius: 50%; background: #3b82f6; opacity: 0.6; animation: bounce 0.6s ease-in-out infinite; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 
   /* input */
   .input-area { padding: 12px 16px; border-top: 1px solid #27272a; display: flex; gap: 8px; }
@@ -113,7 +118,7 @@ export function dashboardHtml(port: number): string {
       <div class="chat-placeholder" id="placeholder">select a session from the sidebar</div>
       <div class="messages" id="messages" style="display:none"></div>
       <div class="terminal-view" id="terminal-view"></div>
-      <div class="typing" id="typing" style="display:none">claude is thinking...</div>
+      <div class="typing" id="typing">claude is thinking<span class="typing-dots"><span></span><span></span><span></span></span></div>
       <div class="approval" id="approval" style="display:none">
         <span class="approval-text" id="approval-text"></span>
         <button class="approve-btn" onclick="approveAction()">approve</button>
@@ -447,6 +452,15 @@ function handleEvent(data) {
       appendTerminalEvent({ type: 'result', text: duration });
     }
   }
+
+  if (data.type === 'permission_request') {
+    const tool = data.toolName || 'unknown';
+    const input = JSON.stringify(data.toolInput || {}).substring(0, 150);
+    document.getElementById('approval-text').textContent = tool + ': ' + input;
+    document.getElementById('approval').style.display = 'flex';
+    document.getElementById('approval').dataset.requestId = data.requestId || '';
+    log('permission request: ' + tool, 'event');
+  }
 }
 
 function sendMsg() {
@@ -463,8 +477,20 @@ function sendMsg() {
   input.focus();
 }
 
-function approveAction() { /* todo: hook into permission flow */ }
-function denyAction() { /* todo: hook into permission flow */ }
+function approveAction() {
+  const requestId = document.getElementById('approval').dataset.requestId;
+  if (ws && requestId) {
+    ws.send(JSON.stringify({ type: 'permission_response', requestId: requestId, behavior: 'allow' }));
+  }
+  document.getElementById('approval').style.display = 'none';
+}
+function denyAction() {
+  const requestId = document.getElementById('approval').dataset.requestId;
+  if (ws && requestId) {
+    ws.send(JSON.stringify({ type: 'permission_response', requestId: requestId, behavior: 'deny' }));
+  }
+  document.getElementById('approval').style.display = 'none';
+}
 
 refreshStatus();
 setInterval(refreshStatus, 2000);

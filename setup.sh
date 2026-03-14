@@ -23,6 +23,36 @@ cd "$SCRIPT_DIR/mcp-server" && npm install && npm run build && cd "$SCRIPT_DIR"
 echo "registering vibelink mcp server..."
 claude mcp add vibelink --scope user -- node "$SCRIPT_DIR/mcp-server/dist/index.js"
 
+# register permission hook
+echo "registering permission approval hook..."
+SETTINGS_FILE="$HOME/.claude/settings.json"
+HOOK_CMD="node $SCRIPT_DIR/hooks/permission-hook.js"
+
+if [ -f "$SETTINGS_FILE" ]; then
+  if command -v jq >/dev/null; then
+    # merge hook into existing settings
+    jq --arg cmd "$HOOK_CMD" '
+      .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) + [{"type": "command", "command": $cmd}] | unique_by(.command))
+    ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+  else
+    echo "warning: jq not found, add permission hook manually to $SETTINGS_FILE"
+  fi
+else
+  mkdir -p "$HOME/.claude"
+  cat > "$SETTINGS_FILE" <<HOOKEOF
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "type": "command",
+        "command": "$HOOK_CMD"
+      }
+    ]
+  }
+}
+HOOKEOF
+fi
+
 # generate auth token
 if [ ! -f "$SCRIPT_DIR/bridge/.env" ]; then
   TOKEN=$(openssl rand -hex 32)

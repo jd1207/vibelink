@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, Pressable, FlatList, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
+import { View, Text, Pressable, FlatList, Keyboard } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
@@ -37,15 +37,40 @@ export default function SessionScreen() {
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
   const components = useMessageStore((s) => s.components[sessionId] ?? EMPTY_COMPONENTS);
+  const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
+
+  // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // normal top-to-bottom list (not inverted)
   const guiItems = useMemo(() => {
     const items: GuiItem[] = [];
+
+    // collect completed tool ids so tool_use blocks show "done" after their result arrives
+    const completedToolIds = new Set<string>();
+    for (const msg of streamedMessages) {
+      if (msg.contentBlocks) {
+        for (const block of msg.contentBlocks) {
+          if (block.type === 'tool_result' && block.id) completedToolIds.add(block.id);
+        }
+      }
+    }
+
     for (const msg of streamedMessages) {
       if (msg.contentBlocks) {
         for (const block of msg.contentBlocks) {
           if (block.type === 'tool_use' || block.type === 'tool_result') {
-            items.push({ kind: 'tool', data: block, messageId: msg.id });
+            const isComplete = block.type === 'tool_result' || (!!block.id && completedToolIds.has(block.id));
+            items.push({ kind: 'tool', data: { ...block, isComplete }, messageId: msg.id });
           }
         }
       }
@@ -84,6 +109,15 @@ export default function SessionScreen() {
     }
   }, [guiItems.length, guiItems[guiItems.length - 1]?.kind === 'message' ? (guiItems[guiItems.length - 1] as any).data?.content?.length : 0]);
 
+  // streaming watchdog: clear stuck streaming on disconnect
+  useEffect(() => {
+    if (!isStreaming || isConnected) return;
+    const timer = setTimeout(() => {
+      useMessageStore.getState().setStreaming(sessionId, false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isStreaming, isConnected, sessionId]);
+
   const handleScroll = useCallback((event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
@@ -107,6 +141,15 @@ export default function SessionScreen() {
       sendRaw({ type: 'ui_interaction', componentId, action, value });
     },
     [sendRaw],
+  );
+
+  const handlePermissionResponse = useCallback(
+    (behavior: 'allow' | 'deny') => {
+      if (!permissionRequest) return;
+      sendRaw({ type: 'permission_response', requestId: permissionRequest.requestId, behavior });
+      useMessageStore.getState().setPermissionRequest(sessionId, null);
+    },
+    [permissionRequest, sendRaw, sessionId],
   );
 
   const renderGuiItem = useCallback(
@@ -139,7 +182,7 @@ export default function SessionScreen() {
         options={{ title: 'chat', headerRight: () => <ConnectionBadge /> }}
       />
       <View
-        style={{ flex: 1, backgroundColor: '#0a0a0a', paddingBottom: insets.bottom }}
+        style={{ flex: 1, backgroundColor: '#0a0a0a', paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
       >
         <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={setActiveTab} />
 
@@ -164,6 +207,29 @@ export default function SessionScreen() {
             />
           )}
         </View>
+
+        {permissionRequest ? (
+          <View className="flex-row items-center gap-2 px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
+            <View className="flex-1">
+              <Text className="text-[#fbbf24] text-xs font-semibold">{permissionRequest.toolName}</Text>
+              <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
+                {JSON.stringify(permissionRequest.toolInput).substring(0, 120)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => handlePermissionResponse('allow')}
+              className="bg-[#16a34a] rounded-lg px-4 py-2 active:opacity-80"
+            >
+              <Text className="text-white font-semibold text-sm">approve</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handlePermissionResponse('deny')}
+              className="bg-[#dc2626] rounded-lg px-4 py-2 active:opacity-80"
+            >
+              <Text className="text-white font-semibold text-sm">deny</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
       </View>

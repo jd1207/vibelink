@@ -18,7 +18,7 @@ interface DynamicRendererProps {
   onInteraction?: (componentId: string, action: string, value: unknown) => void;
 }
 
-export function DynamicRenderer({ component, onInteraction }: DynamicRendererProps) {
+export const DynamicRenderer = React.memo(function DynamicRenderer({ component, onInteraction }: DynamicRendererProps) {
   const props = component.props ?? {};
 
   const handleInteraction = useCallback(
@@ -92,7 +92,7 @@ export function DynamicRenderer({ component, onInteraction }: DynamicRendererPro
     default:
       return <JsonFallback data={component} />;
   }
-}
+});
 
 // placeholder until a real charting lib is added
 function ChartPlaceholder({ data }: { data: Record<string, unknown> }) {
