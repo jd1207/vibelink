@@ -65,6 +65,24 @@ export function dashboardHtml(port: number): string {
   .approval .approve-btn { background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
   .approval .deny-btn { background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
 
+  /* view toggle */
+  .view-toggle { display: none; padding: 0 16px; border-bottom: 1px solid #27272a; background: #0a0a0a; }
+  .view-toggle.visible { display: flex; }
+  .view-tab { background: none; border: none; color: #71717a; font-size: 13px; font-weight: 600; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .view-tab:hover { color: #a1a1aa; }
+  .view-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+
+  /* terminal view */
+  .terminal-view { flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; display: none; background: #0a0a0a; }
+  .term-line { white-space: pre-wrap; word-break: break-all; }
+  .term-system { color: #60a5fa; }
+  .term-text { color: #e4e4e7; }
+  .term-assistant { color: #34d399; }
+  .term-user { color: #60a5fa; }
+  .term-tool { color: #fb923c; }
+  .term-tool-result { color: rgba(194, 129, 48, 0.5); }
+  .term-result { color: #71717a; }
+
   /* console */
   .console-toggle { padding: 4px 16px; background: #18181b; border-top: 1px solid #27272a; cursor: pointer; font-size: 11px; color: #71717a; user-select: none; }
   .console-toggle:hover { color: #a1a1aa; }
@@ -88,8 +106,13 @@ export function dashboardHtml(port: number): string {
   </div>
   <div class="content">
     <div class="chat-area" id="chat-area">
+      <div class="view-toggle" id="view-toggle">
+        <button class="view-tab active" id="tab-chat" onclick="switchView('chat')">chat</button>
+        <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">terminal</button>
+      </div>
       <div class="chat-placeholder" id="placeholder">select a session from the sidebar</div>
       <div class="messages" id="messages" style="display:none"></div>
+      <div class="terminal-view" id="terminal-view"></div>
       <div class="typing" id="typing" style="display:none">claude is thinking...</div>
       <div class="approval" id="approval" style="display:none">
         <span class="approval-text" id="approval-text"></span>
@@ -117,6 +140,8 @@ let consoleOpen = false;
 let consoleLines = 0;
 let isStreaming = false;
 let streamBuffer = '';
+let currentView = 'chat';
+let sessionEvents = [];
 
 function log(text, cls = '') {
   const el = document.getElementById('console');
@@ -175,6 +200,8 @@ async function endSession(id) {
 function showPlaceholder() {
   document.getElementById('placeholder').style.display = 'flex';
   document.getElementById('messages').style.display = 'none';
+  document.getElementById('terminal-view').style.display = 'none';
+  document.getElementById('view-toggle').className = 'view-toggle';
   document.getElementById('input-area').style.display = 'none';
   document.getElementById('typing').style.display = 'none';
   document.getElementById('approval').style.display = 'none';
@@ -232,12 +259,99 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function switchView(view) {
+  currentView = view;
+  document.getElementById('tab-chat').className = 'view-tab' + (view === 'chat' ? ' active' : '');
+  document.getElementById('tab-terminal').className = 'view-tab' + (view === 'terminal' ? ' active' : '');
+
+  if (view === 'chat') {
+    document.getElementById('messages').style.display = 'block';
+    document.getElementById('terminal-view').style.display = 'none';
+    document.getElementById('input-area').style.display = 'flex';
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  } else {
+    document.getElementById('messages').style.display = 'none';
+    document.getElementById('terminal-view').style.display = 'block';
+    document.getElementById('input-area').style.display = 'none';
+    renderTerminal();
+  }
+}
+
+function renderTerminal() {
+  const el = document.getElementById('terminal-view');
+  el.innerHTML = '';
+  let textAccum = '';
+
+  function flushText() {
+    if (!textAccum) return;
+    const line = document.createElement('div');
+    line.className = 'term-line term-text';
+    line.textContent = textAccum;
+    el.appendChild(line);
+    textAccum = '';
+  }
+
+  for (const evt of sessionEvents) {
+    if (evt.type === 'system') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-system';
+      line.textContent = 'system: ' + evt.text;
+      el.appendChild(line);
+    } else if (evt.type === 'text_delta') {
+      textAccum += evt.text;
+    } else if (evt.type === 'assistant') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-assistant';
+      line.textContent = evt.text;
+      el.appendChild(line);
+    } else if (evt.type === 'user') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-user';
+      line.textContent = 'you: ' + evt.text;
+      el.appendChild(line);
+    } else if (evt.type === 'tool_use') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-tool';
+      line.textContent = '> ' + evt.text;
+      el.appendChild(line);
+    } else if (evt.type === 'tool_result') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-tool-result';
+      line.textContent = evt.text;
+      el.appendChild(line);
+    } else if (evt.type === 'result') {
+      flushText();
+      const line = document.createElement('div');
+      line.className = 'term-line term-result';
+      line.textContent = evt.text;
+      el.appendChild(line);
+    }
+  }
+  flushText();
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendTerminalEvent(evt) {
+  sessionEvents.push(evt);
+  if (currentView === 'terminal') renderTerminal();
+}
+
 // websocket
 function selectSession(id) {
   if (id === activeSessionId) return;
   activeSessionId = id;
+  sessionEvents = [];
   document.getElementById('messages').innerHTML = '';
+  document.getElementById('terminal-view').innerHTML = '';
+  document.getElementById('view-toggle').className = 'view-toggle visible';
   showChat();
+  if (currentView === 'terminal') switchView('terminal');
   connectWs(id);
   refreshStatus();
   log('selected session ' + id.slice(0,8), 'ws');
@@ -269,6 +383,14 @@ function handleEvent(data) {
   if (data.type === 'claude_event' && data.event) {
     const evt = data.event;
 
+    // skip events not worth showing in terminal
+    const skip = ['hook', 'rate_limit'];
+    if (skip.includes(evt.type)) return;
+
+    if (evt.type === 'system') {
+      appendTerminalEvent({ type: 'system', text: evt.message || JSON.stringify(evt) });
+    }
+
     if (evt.type === 'stream_event') {
       const delta = evt.event?.delta;
       if (delta?.type === 'text_delta' && delta.text) {
@@ -276,7 +398,9 @@ function handleEvent(data) {
         updateStreamingMsg(streamBuffer);
         document.getElementById('typing').style.display = 'none';
         isStreaming = true;
+        appendTerminalEvent({ type: 'text_delta', text: delta.text });
       }
+      // skip signature_delta, thinking_delta
     }
 
     if (evt.type === 'assistant') {
@@ -284,24 +408,32 @@ function handleEvent(data) {
       isStreaming = false;
       document.getElementById('typing').style.display = 'none';
 
-      // check for tool use
+      // extract text content for terminal
       if (evt.message?.content) {
         for (const block of evt.message.content) {
+          if (block.type === 'text' && block.text) {
+            appendTerminalEvent({ type: 'assistant', text: block.text });
+          }
           if (block.type === 'tool_use') {
             addToolMsg('> ' + block.name + '(' + JSON.stringify(block.input || {}).substring(0, 100) + ')');
+            const inputStr = JSON.stringify(block.input || {}).substring(0, 120);
+            appendTerminalEvent({ type: 'tool_use', text: block.name + '(' + inputStr + ')' });
           }
         }
       }
     }
 
     if (evt.type === 'user') {
-      // tool results
       if (Array.isArray(evt.message?.content)) {
         for (const block of evt.message.content) {
-          if (block.type === 'text') addMessage('user', block.text);
+          if (block.type === 'text') {
+            addMessage('user', block.text);
+            appendTerminalEvent({ type: 'user', text: block.text });
+          }
           if (block.type === 'tool_result') {
             const out = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
             addToolMsg('result: ' + out.substring(0, 200));
+            appendTerminalEvent({ type: 'tool_result', text: 'result: ' + out.substring(0, 200) });
           }
         }
       }
@@ -311,6 +443,8 @@ function handleEvent(data) {
       finalizeStreamingMsg();
       isStreaming = false;
       document.getElementById('typing').style.display = 'none';
+      const duration = evt.duration_ms ? ('done in ' + evt.duration_ms + 'ms') : 'done';
+      appendTerminalEvent({ type: 'result', text: duration });
     }
   }
 }
@@ -321,6 +455,7 @@ function sendMsg() {
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
   addMessage('user', text);
+  appendTerminalEvent({ type: 'user', text: text });
   ws.send(JSON.stringify({ type: 'user_message', content: text }));
   input.value = '';
   document.getElementById('typing').style.display = 'block';
