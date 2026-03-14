@@ -9,8 +9,7 @@ const DEFAULT_ARGS = [
   "stream-json",
   "--verbose",
   "--include-partial-messages",
-  "--permission-mode",
-  "auto",
+  "--dangerously-skip-permissions",
 ];
 
 interface ClaudeProcessOptions {
