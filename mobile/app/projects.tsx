@@ -129,7 +129,6 @@ export default function ProjectsScreen() {
           <FlashList
             data={filtered}
             keyExtractor={(item) => item.path}
-            estimatedItemSize={80}
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 32 }}
             renderItem={({ item }) => (
               <ProjectRow project={item} onPress={() => handleSelect(item)} />
