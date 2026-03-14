@@ -62,14 +62,17 @@ function processEvent(
     }
 
     case 'assistant': {
-      streamBufferRef.current = '';
       const msg = inner as { type: string; message?: { content?: unknown[] } };
       const blocks = parseContentBlocks(msg.message?.content);
       const text = blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
 
+      // use streamed text if we have it, otherwise use the assistant message text
+      const finalText = streamBufferRef.current || text;
+      streamBufferRef.current = '';
+
       const lastMsg = result[result.length - 1];
       if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-        result[result.length - 1] = { ...lastMsg, content: text, contentBlocks: blocks, isStreaming: false };
+        result[result.length - 1] = { ...lastMsg, content: finalText, contentBlocks: blocks, isStreaming: false };
       } else {
         result.push({
           id: `asst-${Date.now()}`,
@@ -109,8 +112,14 @@ function processEvent(
       break;
     }
 
-    case 'result':
+    case 'result': {
+      // force-finalize any streaming message
+      const lastMsg = result[result.length - 1];
+      if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+        result[result.length - 1] = { ...lastMsg, isStreaming: false };
+      }
       streamBufferRef.current = '';
       break;
+    }
   }
 }
