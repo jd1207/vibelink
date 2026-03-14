@@ -89,19 +89,29 @@ function processEvent(
     case 'user': {
       const userEvt = inner as { type: string; message?: { content?: unknown[] | string } };
       let content = '';
+      let blocks: ReturnType<typeof parseContentBlocks> | undefined;
       if (typeof userEvt.message?.content === 'string') {
         content = userEvt.message.content;
       } else if (Array.isArray(userEvt.message?.content)) {
-        // extract text from content blocks — this is what the user typed
         content = userEvt.message.content
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text ?? '')
           .join('');
-        // skip tool_result blocks — those are shown separately as tool activity
+        // tool_result-only messages: no bubble, but keep contentBlocks so tool_use can mark complete
         const hasOnlyToolResults = userEvt.message.content.every((b: any) => b.type === 'tool_result');
-        if (hasOnlyToolResults) break; // don't show tool results as user messages
+        if (hasOnlyToolResults) {
+          blocks = parseContentBlocks(userEvt.message.content as unknown[]);
+          result.push({
+            id: `toolres-${Date.now()}`,
+            role: 'user',
+            content: '',
+            contentBlocks: blocks,
+            timestamp: Date.now(),
+          });
+          break;
+        }
       }
-      if (!content) break; // skip empty user messages
+      if (!content) break;
 
       result.push({
         id: `user-${Date.now()}`,
