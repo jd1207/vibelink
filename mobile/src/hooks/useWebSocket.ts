@@ -119,5 +119,5 @@ export function useWebSocket(sessionId: string) {
     };
   }, [connect]);
 
-  return { isConnected, sendMessage, sendInputResponse };
+  return { isConnected, sendMessage, sendInputResponse, sendRaw };
 }

@@ -12,12 +12,20 @@ import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
 import { CliRenderer } from '../../src/components/CliRenderer';
 import { TabBar } from '../../src/components/TabBar';
+import { DynamicRenderer } from '../../src/components/DynamicRenderer';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
 
+interface DynamicComponent {
+  id: string;
+  type: string;
+  props?: Record<string, unknown>;
+}
+
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
-  | { kind: 'tool'; data: ContentBlock; messageId: string };
+  | { kind: 'tool'; data: ContentBlock; messageId: string }
+  | { kind: 'component'; data: DynamicComponent };
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,10 +33,11 @@ export default function SessionScreen() {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = React.useState('gui');
-  const { isConnected, sendMessage } = useWebSocket(sessionId);
+  const { isConnected, sendMessage, sendRaw } = useWebSocket(sessionId);
   const streamedMessages = useStreaming(sessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming.get(sessionId) ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs.get(sessionId) ?? []);
+  const components = useMessageStore((s) => s.components.get(sessionId));
 
   const { scrollRef, onScroll, isAtBottom, scrollToBottom } = useStickyScroll<GuiItem>();
 
@@ -46,8 +55,15 @@ export default function SessionScreen() {
         items.push({ kind: 'message', data: msg });
       }
     }
+    // append dynamic components at the end of the conversation
+    if (components) {
+      for (const [, comp] of components) {
+        const c = comp as DynamicComponent;
+        if (c.id && c.type) items.push({ kind: 'component', data: c });
+      }
+    }
     return items.reverse();
-  }, [streamedMessages]);
+  }, [streamedMessages, components]);
 
   const tabNames = useMemo(() => {
     const tabs = [
@@ -61,13 +77,34 @@ export default function SessionScreen() {
     return tabs;
   }, [dynamicTabs]);
 
-  const renderGuiItem = useCallback(({ item }: { item: GuiItem }) => {
-    if (item.kind === 'tool') return <ToolActivity block={item.data} />;
-    return <MessageBubble message={item.data} />;
-  }, []);
+  const handleComponentInteraction = useCallback(
+    (componentId: string, action: string, value: unknown) => {
+      sendRaw({ type: 'ui_interaction', componentId, action, value });
+    },
+    [sendRaw],
+  );
+
+  const renderGuiItem = useCallback(
+    ({ item }: { item: GuiItem }) => {
+      if (item.kind === 'tool') return <ToolActivity block={item.data} />;
+      if (item.kind === 'component') {
+        return (
+          <View className="px-4 py-1">
+            <DynamicRenderer
+              component={item.data}
+              onInteraction={handleComponentInteraction}
+            />
+          </View>
+        );
+      }
+      return <MessageBubble message={item.data} />;
+    },
+    [handleComponentInteraction],
+  );
 
   const keyExtractor = useCallback((item: GuiItem, index: number) => {
     if (item.kind === 'message') return `msg-${item.data.id}`;
+    if (item.kind === 'component') return `comp-${item.data.id}`;
     return `tool-${item.messageId}-${item.data.id ?? index}`;
   }, []);
 
