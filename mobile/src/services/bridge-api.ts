@@ -66,11 +66,10 @@ export const bridgeApi = {
     }));
   },
 
-  createSession: async (projectPath: string): Promise<Session> => {
-    // bridge returns { sessionId, wsUrl } — normalize to our Session shape
+  createSession: async (projectPath: string, skipPermissions?: boolean): Promise<Session> => {
     const raw = await apiFetch<{ sessionId: string; wsUrl: string }>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ projectPath }),
+      body: JSON.stringify({ projectPath, skipPermissions: skipPermissions ?? false }),
     });
     const name = projectPath.split('/').filter(Boolean).pop() ?? projectPath;
     return {

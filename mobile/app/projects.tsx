@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   Pressable,
+  Switch,
   ActivityIndicator,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
@@ -57,6 +58,7 @@ function ProjectRow({ project, onPress }: ProjectRowProps) {
 export default function ProjectsScreen() {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  const [skipPermissions, setSkipPermissions] = useState(false);
   const { projects, loading, error, refresh } = useProjects();
   const { addSession } = useSessionStore();
 
@@ -76,7 +78,7 @@ export default function ProjectsScreen() {
     if (creating) return;
     setCreating(true);
     try {
-      const session = await bridgeApi.createSession(project.path);
+      const session = await bridgeApi.createSession(project.path, skipPermissions);
       addSession(session);
       router.replace(`/session/${session.id}`);
     } catch (err) {
@@ -105,6 +107,24 @@ export default function ProjectsScreen() {
             />
           </View>
         </View>
+
+        <Pressable
+          onPress={() => setSkipPermissions(!skipPermissions)}
+          className="mx-4 mb-3 flex-row items-center justify-between bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3"
+        >
+          <View className="flex-1 mr-3">
+            <Text className="text-[#fafafa] text-sm font-medium">skip permissions</Text>
+            <Text className="text-[#52525b] text-xs mt-0.5">
+              auto-approve all tool use (file edits, commands)
+            </Text>
+          </View>
+          <Switch
+            value={skipPermissions}
+            onValueChange={setSkipPermissions}
+            trackColor={{ false: '#27272a', true: '#1d4ed8' }}
+            thumbColor={skipPermissions ? '#3b82f6' : '#52525b'}
+          />
+        </Pressable>
 
         {loading && (
           <View className="flex-1 items-center justify-center">

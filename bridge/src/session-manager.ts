@@ -27,13 +27,24 @@ export class SessionManager extends EventEmitter {
     this.options = options;
   }
 
-  create(projectPath: string, resumeSessionId?: string): Session {
+  create(projectPath: string, resumeSessionId?: string, skipPermissions?: boolean): Session {
     const id = randomUUID();
 
-    const args = this.options.claudeArgs
-      ?? (resumeSessionId
-        ? ["--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--resume", resumeSessionId]
-        : undefined);
+    let args = this.options.claudeArgs;
+    if (!args) {
+      args = [
+        "--input-format", "stream-json",
+        "--output-format", "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+      ];
+      if (skipPermissions) {
+        args.push("--dangerously-skip-permissions");
+      }
+      if (resumeSessionId) {
+        args.push("--resume", resumeSessionId);
+      }
+    }
 
     const proc = new ClaudeProcess({
       command: this.options.claudeCommand,

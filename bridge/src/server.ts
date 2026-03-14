@@ -84,12 +84,16 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   });
 
   expressApp.post("/sessions", (req, res) => {
-    const { projectPath, resumeSessionId } = req.body as { projectPath?: string; resumeSessionId?: string };
+    const { projectPath, resumeSessionId, skipPermissions } = req.body as {
+      projectPath?: string;
+      resumeSessionId?: string;
+      skipPermissions?: boolean;
+    };
     if (!projectPath) {
       res.status(400).json({ error: "projectPath required" });
       return;
     }
-    const session = sessionManager.create(projectPath, resumeSessionId);
+    const session = sessionManager.create(projectPath, resumeSessionId, skipPermissions);
     const wsUrl = `ws://localhost:${port}/ws/${session.id}`;
     res.status(201).json({ sessionId: session.id, wsUrl });
   });
