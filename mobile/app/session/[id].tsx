@@ -132,11 +132,14 @@ export default function SessionScreen() {
 
   const handlePermissionResponse = useCallback(
     (behavior: 'allow' | 'deny') => {
-      if (!permissionRequest) return;
-      sendRaw({ type: 'permission_response', requestId: permissionRequest.requestId, behavior });
+      // read directly from store to avoid stale closure when tapping rapidly
+      const queue = useMessageStore.getState().permissionQueue[sessionId];
+      const front = queue?.[0];
+      if (!front) return;
+      sendRaw({ type: 'permission_response', requestId: front.requestId, behavior });
       useMessageStore.getState().shiftPermission(sessionId);
     },
-    [permissionRequest, sendRaw, sessionId],
+    [sendRaw, sessionId],
   );
 
   const renderGuiItem = useCallback(
