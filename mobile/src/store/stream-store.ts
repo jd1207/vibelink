@@ -28,18 +28,26 @@ export const useStreamStore = create<StreamState>((set) => ({
   addStreamTab: (sessionId, windowId, title, status = "streaming") =>
     set((s) => {
       const existing = s.streamTabs[sessionId] ?? {};
+      // tab already exists (e.g. stream_started event after initial add)
+      // just update status, preserve the tabLabel
+      if (existing[windowId]) {
+        return {
+          streamTabs: {
+            ...s.streamTabs,
+            [sessionId]: {
+              ...existing,
+              [windowId]: { ...existing[windowId], status, windowTitle: title },
+            },
+          },
+        };
+      }
       const nextNum = Object.keys(existing).length + 1;
       return {
         streamTabs: {
           ...s.streamTabs,
           [sessionId]: {
             ...existing,
-            [windowId]: {
-              windowId,
-              windowTitle: title,
-              tabLabel: `Stream ${nextNum}`,
-              status,
-            },
+            [windowId]: { windowId, windowTitle: title, tabLabel: `Stream ${nextNum}`, status },
           },
         },
       };
