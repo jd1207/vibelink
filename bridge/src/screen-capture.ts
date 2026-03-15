@@ -1,5 +1,6 @@
 import { spawn, execSync, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
+import { config } from "./config.js";
 
 // --- types ---
 
@@ -26,8 +27,6 @@ const DEFAULT_OPTS: Required<StreamOptions> = {
   fps: 5,
   quality: 10,
 };
-
-const MAX_CONCURRENT_STREAMS = 3;
 
 // jpeg markers
 const SOI = Buffer.from([0xff, 0xd8]);
@@ -185,11 +184,11 @@ export class CaptureManager extends EventEmitter {
       return;
     }
 
-    if (this.streams.size >= MAX_CONCURRENT_STREAMS) {
+    if (this.streams.size >= config.maxConcurrentStreams) {
       this.emit(
         "error",
         windowId,
-        new Error(`max concurrent streams (${MAX_CONCURRENT_STREAMS}) reached`)
+        new Error(`max concurrent streams (${config.maxConcurrentStreams}) reached`)
       );
       return;
     }

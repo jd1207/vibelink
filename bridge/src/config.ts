@@ -13,4 +13,5 @@ export const config = {
   wsHeartbeatIntervalMs: parseInt(env.WS_HEARTBEAT_INTERVAL_MS ?? "30000", 10),
   wsHeartbeatTimeoutMs: parseInt(env.WS_HEARTBEAT_TIMEOUT_MS ?? "10000", 10),
   requestInputTimeoutMs: parseInt(env.REQUEST_INPUT_TIMEOUT_MS ?? "300000", 10),
+  maxConcurrentStreams: parseInt(env.MAX_CONCURRENT_STREAMS ?? "3", 10),
 };
