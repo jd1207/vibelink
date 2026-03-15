@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useMessageStore, EMPTY_COMPONENTS } from '../store/messages';
 import type { SessionMetadata, WorkspaceCanvas } from '../store/message-types';
 import { MetadataPanel } from './MetadataPanel';
@@ -64,10 +64,14 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
 
 const DESKTOP_WIDTH = 1280;
 
+const DESKTOP_VIEWPORT_JS = `(function(){
+  var meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) { meta = document.createElement('meta'); meta.name = 'viewport'; document.head.appendChild(meta); }
+  meta.content = 'width=${DESKTOP_WIDTH}';
+})(); true;`;
+
 function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
   const [viewport, setViewport] = React.useState<'mobile' | 'desktop'>('mobile');
-  const [containerHeight, setContainerHeight] = React.useState(0);
-  const { width: screenWidth } = useWindowDimensions();
 
   if (!WebView) {
     return (
@@ -81,10 +85,9 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
   }
 
   const isDesktop = viewport === 'desktop';
-  const scale = screenWidth / DESKTOP_WIDTH;
 
   const source = canvas.mode === 'html'
-    ? { html: wrapHtml(canvas.html ?? '') }
+    ? { html: wrapHtml(canvas.html ?? '', isDesktop) }
     : { uri: canvas.url ?? '' };
 
   return (
@@ -99,36 +102,19 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
         />
       </View>
 
-      <View
-        style={{ flex: 1, overflow: 'hidden' }}
-        onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
-      >
-        <View
-          style={
-            isDesktop
-              ? {
-                  width: DESKTOP_WIDTH,
-                  height: containerHeight > 0 ? containerHeight / scale : '100%',
-                  transform: [{ scale }],
-                  transformOrigin: 'top left',
-                }
-              : { flex: 1 }
-          }
-        >
-          <WebView
-            key={viewport}
-            source={source}
-            style={{ flex: 1, backgroundColor: '#0a0a0a' }}
-            originWhitelist={['*']}
-            javaScriptEnabled
-            domStorageEnabled
-            allowsInlineMediaPlayback
-            mediaPlaybackRequiresUserAction={false}
-            startInLoadingState
-            scalesPageToFit={false}
-          />
-        </View>
-      </View>
+      <WebView
+        key={viewport}
+        source={source}
+        style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+        originWhitelist={['*']}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        startInLoadingState
+        scalesPageToFit={isDesktop}
+        injectedJavaScriptBeforeContentLoaded={isDesktop && canvas.mode === 'url' ? DESKTOP_VIEWPORT_JS : undefined}
+      />
     </View>
   );
 }
@@ -179,11 +165,12 @@ function MonitorIcon({ active }: { active: boolean }) {
   );
 }
 
-function wrapHtml(html: string): string {
+function wrapHtml(html: string, desktop?: boolean): string {
   if (html.includes('<html') || html.includes('<!DOCTYPE')) return html;
+  const viewportWidth = desktop ? `${DESKTOP_WIDTH}` : 'device-width';
   return `<!DOCTYPE html>
 <html><head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=${viewportWidth},initial-scale=1">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a0a; color: #fafafa; font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
