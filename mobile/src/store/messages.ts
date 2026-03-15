@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { ClaudeEvent, ChatMessage, InputRequest } from './message-types';
+import type { ClaudeEvent, ChatMessage, InputRequest, SessionMetadata, WorkspaceCanvas } from './message-types';
 
-export type { ClaudeEvent, ChatMessage, ContentBlock, InputRequest } from './message-types';
+export type { ClaudeEvent, ChatMessage, ContentBlock, InputRequest, SessionMetadata, WorkspaceCanvas } from './message-types';
 
 // use plain objects instead of Maps to avoid getSnapshot reference issues
 interface MessageState {
@@ -12,6 +12,8 @@ interface MessageState {
   lastEventId: Record<string, string>;
   inputRequests: Record<string, InputRequest | null>;
   permissionRequests: Record<string, { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null>;
+  metadata: Record<string, SessionMetadata>;
+  canvas: Record<string, WorkspaceCanvas | null>;
 
   appendEvent: (sessionId: string, event: ClaudeEvent) => void;
   setComponent: (sessionId: string, componentId: string, component: unknown) => void;
@@ -21,6 +23,9 @@ interface MessageState {
   setLastEventId: (sessionId: string, eventId: string) => void;
   setInputRequest: (sessionId: string, request: InputRequest | null) => void;
   setPermissionRequest: (sessionId: string, request: { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null) => void;
+  setMetadata: (sessionId: string, metadata: SessionMetadata) => void;
+  updateUsage: (sessionId: string, usage: Partial<SessionMetadata>) => void;
+  setCanvas: (sessionId: string, canvas: WorkspaceCanvas | null) => void;
   clearSession: (sessionId: string) => void;
 }
 
@@ -39,6 +44,8 @@ export const useMessageStore = create<MessageState>((set) => ({
   lastEventId: {},
   inputRequests: {},
   permissionRequests: {},
+  metadata: {},
+  canvas: {},
 
   appendEvent: (sessionId, event) =>
     set((state) => {
@@ -102,6 +109,24 @@ export const useMessageStore = create<MessageState>((set) => ({
       permissionRequests: { ...state.permissionRequests, [sessionId]: request },
     })),
 
+  setMetadata: (sessionId, metadata) =>
+    set((state) => ({
+      metadata: { ...state.metadata, [sessionId]: metadata },
+    })),
+
+  updateUsage: (sessionId, usage) =>
+    set((state) => {
+      const existing = state.metadata[sessionId] ?? {};
+      return {
+        metadata: { ...state.metadata, [sessionId]: { ...existing, ...usage } },
+      };
+    }),
+
+  setCanvas: (sessionId, canvas) =>
+    set((state) => ({
+      canvas: { ...state.canvas, [sessionId]: canvas },
+    })),
+
   clearSession: (sessionId) =>
     set((state) => {
       const { [sessionId]: _e, ...events } = state.events;
@@ -111,6 +136,8 @@ export const useMessageStore = create<MessageState>((set) => ({
       const { [sessionId]: _l, ...lastEventId } = state.lastEventId;
       const { [sessionId]: _i, ...inputRequests } = state.inputRequests;
       const { [sessionId]: _p, ...permissionRequests } = state.permissionRequests;
-      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionRequests };
+      const { [sessionId]: _m, ...metadata } = state.metadata;
+      const { [sessionId]: _cv, ...canvas } = state.canvas;
+      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionRequests, metadata, canvas };
     }),
 }));

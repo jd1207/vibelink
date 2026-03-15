@@ -125,7 +125,7 @@ export function dashboardHtml(port: number): string {
     <div class="chat-area" id="chat-area">
       <div class="view-toggle" id="view-toggle">
         <button class="view-tab active" id="tab-chat" onclick="switchView('chat')">chat</button>
-        <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">terminal</button>
+        <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">workspace</button>
       </div>
       <div class="chat-placeholder" id="placeholder">select a session from the sidebar</div>
       <div class="messages" id="messages" style="display:none"></div>

@@ -4,25 +4,17 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
-import { useMessageStore, ChatMessage, ContentBlock, EMPTY_COMPONENTS, EMPTY_TABS } from '../../src/store/messages';
+import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS } from '../../src/store/messages';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
-import { CliRenderer } from '../../src/components/CliRenderer';
+import { WorkspaceView } from '../../src/components/WorkspaceView';
 import { TabBar } from '../../src/components/TabBar';
-import { DynamicRenderer } from '../../src/components/DynamicRenderer';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
 
-interface DynamicComponent {
-  id: string;
-  type: string;
-  props?: Record<string, unknown>;
-}
-
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
-  | { kind: 'tool'; data: ContentBlock; messageId: string }
-  | { kind: 'component'; data: DynamicComponent };
+  | { kind: 'tool'; data: ContentBlock; messageId: string };
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,7 +28,6 @@ export default function SessionScreen() {
   const streamedMessages = useStreaming(sessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
-  const components = useMessageStore((s) => s.components[sessionId] ?? EMPTY_COMPONENTS);
   const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
 
   // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android
@@ -91,14 +82,8 @@ export default function SessionScreen() {
       }
     }
 
-    // dynamic components
-    for (const key of Object.keys(components)) {
-      const c = components[key] as DynamicComponent;
-      if (c?.id && c?.type) items.push({ kind: 'component', data: c });
-    }
-
     return items;
-  }, [streamedMessages, components, isStreaming]);
+  }, [streamedMessages, isStreaming]);
 
   // auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -127,7 +112,7 @@ export default function SessionScreen() {
   const tabNames = useMemo(() => {
     const tabs = [
       { key: 'gui', label: 'chat' },
-      { key: 'cli', label: 'terminal' },
+      { key: 'workspace', label: 'workspace' },
     ];
     for (const tab of dynamicTabs) {
       const t = tab as { id?: string; label?: string };
@@ -155,24 +140,13 @@ export default function SessionScreen() {
   const renderGuiItem = useCallback(
     ({ item }: { item: GuiItem }) => {
       if (item.kind === 'tool') return <ToolActivity block={item.data} />;
-      if (item.kind === 'component') {
-        return (
-          <View className="px-4 py-1">
-            <DynamicRenderer
-              component={item.data}
-              onInteraction={handleComponentInteraction}
-            />
-          </View>
-        );
-      }
       return <MessageBubble message={item.data} />;
     },
-    [handleComponentInteraction],
+    [],
   );
 
   const keyExtractor = useCallback((item: GuiItem, index: number) => {
     if (item.kind === 'message') return `msg-${item.data.id}-${index}`;
-    if (item.kind === 'component') return `comp-${item.data.id}`;
     return `tool-${item.messageId}-${index}`;
   }, []);
 
@@ -187,8 +161,8 @@ export default function SessionScreen() {
         <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={setActiveTab} />
 
         <View className="flex-1">
-          {activeTab === 'cli' ? (
-            <CliRenderer sessionId={sessionId} />
+          {activeTab === 'workspace' ? (
+            <WorkspaceView sessionId={sessionId} onComponentInteraction={handleComponentInteraction} />
           ) : (
             <FlatList
               ref={flatListRef}
