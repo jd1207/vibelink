@@ -357,27 +357,39 @@ See package READMEs for internals:
 - [x] **Dashboard** -- web UI for managing sessions and debugging (http://localhost:3400/dashboard)
 - [x] **QR Code Setup** -- scan to connect, vibelink:// deep links, cross-platform setup scripts
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
+- [x] **Session Browser** -- lists all Claude Code sessions on the system, resume with conversation history
+- [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
+- [x] **File Browser** -- browse project files in workspace, view contents, render markdown
+- [x] **Viewport Toggle** -- switch workspace between mobile and 1280px desktop width
 
-### Now (Sprint 4)
+### Sprint 4 (done)
 
-- [ ] **Session browser** -- see all active Claude Code sessions on your system, tap to view recent messages, resume or start new sessions in any project folder
-- [ ] **Workspace viewport toggle** -- switch between mobile and desktop width when previewing websites
+- [x] **Session browser v1** -- see all Claude Code sessions on your system, view recent messages, resume sessions
+- [x] **Workspace viewport toggle** -- switch between mobile and desktop width when previewing websites
+- [x] **Theme system** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), instant switching, zero hardcoded colors
+- [x] **File browser** -- browse project files in workspace, view file contents, render markdown
 
-### Next (Sprint 5-6)
+### Now (Sprint 5)
+
+- [ ] **Session browser v2** -- attach to live running CLI sessions (bidirectional), not just view history. Session multiplexing so phone and terminal share the same Claude process
+- [ ] **UI quality of life** -- loading states, smoother transitions, polish rough edges
+- [ ] **Settings menu upgrade** -- show bridge URL, connection status, theme picker, and session info in one place
+- [ ] **Smarter system prompt** -- richer context injection so Claude makes better use of workspace tools
+- [ ] **Permission approvals outside chat** -- approve tool calls from home screen or notification-style UI
+
+### Next (Sprint 6-7)
 
 - [ ] **Onboarding flow** -- Apple-style first-run experience: connect to bridge, customize theme, skippable intro
-- [ ] **Theme customization** -- match Claude Code colors, user-configurable color scheme
-- [ ] **File browser in workspace** -- browse project directory, view files, view CLAUDE.md
 - [ ] **File transfer** -- send files/photos to chat, download files from chat
 - [ ] **CLI command passthrough** -- /mcp, /context, /plugin and their sub-workflows work from the app
-- [ ] **Workspace overhaul** -- richer canvas with tabbed views, better layout, more MCP component types
+- [ ] **Workspace v2** -- richer canvas, better layout, more MCP component types
+- [ ] **Dashboard overhaul** -- modernize the web dashboard UI
 
 ### Later
 
 - [ ] **Interactive streaming** -- click, scroll, and type into mirrored windows (input forwarding via xdotool)
 - [ ] **App integrations** -- interactive mirroring for Unity (Game View playtesting), Blender (viewport preview), and other creative tools
 - [ ] **WebRTC transport** -- lower latency streaming with better codec support
-- [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
 - [ ] **Push notifications** -- get notified when Claude finishes a long task
 - [ ] **Camera/file uploads** -- send photos and files to Claude
 - [ ] **App Store / Play Store** -- publish for one-tap install
