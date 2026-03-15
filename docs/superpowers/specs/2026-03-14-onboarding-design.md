@@ -2,26 +2,39 @@
 
 > Goal: A non-technical user on Mac or Windows can go from a GitHub link to chatting with Claude on their phone in under 10 minutes, with 3 or fewer manual actions on the phone.
 
-## The Golden Path
+## The Golden Path (Android)
 
 ```
 User tells their Claude: "Set up VibeLink from github.com/jd1207/vibelink"
 
 Claude:
-  1. Reads README
-  2. Clones repo
-  3. Detects OS (Mac/Windows/Linux)
-  4. Runs setup script
-  5. Bridge + MCP server built and running
-  6. Prints: "Download the APK from [releases link], install it,
-     then scan this QR code:"
-  7. Renders QR code in terminal
+  1. Reads README, clones repo, detects OS
+  2. Runs setup script (bridge + MCP server built and running)
+  3. Walks the user through three phone-side steps:
 
-User:
-  1. Downloads APK, installs on phone
-  2. Opens app, scans QR code
-  3. Connected — sees projects, starts chatting
+  "Here's how to get VibeLink on your phone (~10 minutes):
+
+   1. Scan this QR code to download the app:
+      [QR code → GitHub Releases APK download link]
+      Install it when prompted.
+
+   2. While it installs, get Tailscale on your phone:
+      - Download Tailscale from the Play Store
+      - Sign in with the same account as your computer
+      - That's it — your phone and computer are now on the same network
+
+   3. Open VibeLink and scan this QR code to connect:
+      [QR code → vibelink://connect?host=100.x.x.x&port=3400&token=abc...]
+
+   Done. You should see your projects."
 ```
+
+Two QR codes, one Tailscale download in between. The README and setup script
+output must be clear enough that Claude can relay these instructions verbatim.
+
+**iOS path:** Same computer-side setup, but step 1 is "build from source on
+a Mac" or "download from App Store" (future). No prebuilt APK option for iOS
+until App Store publication.
 
 ## Phone-Side: Three Install Options
 
