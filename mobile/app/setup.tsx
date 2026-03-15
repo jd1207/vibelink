@@ -155,7 +155,7 @@ export default function SetupScreen() {
         <Text className="text-[#a1a1aa] text-sm mb-1.5">bridge url</Text>
         <TextInput
           className="bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 text-[#fafafa] text-base mb-1"
-          placeholder="100.64.0.1:3400"
+          placeholder="steamdeck:3400"
           placeholderTextColor="#52525b"
           value={bridgeUrl}
           onChangeText={setBridgeUrl}
@@ -164,7 +164,7 @@ export default function SetupScreen() {
           keyboardType="url"
         />
         <Text className="text-[#a1a1aa] text-xs mt-1 mb-2">
-          both your phone and computer need tailscale on the same account
+          use your device's tailscale hostname or IP — both devices need tailscale on the same account
         </Text>
 
         <Text className="text-[#a1a1aa] text-sm mb-1.5">auth token</Text>
