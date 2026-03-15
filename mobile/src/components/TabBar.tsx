@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
+import { colors } from '../constants/colors';
 
 interface Tab {
   key: string;
@@ -14,7 +15,7 @@ interface TabBarProps {
 
 export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
   return (
-    <View style={{ borderBottomWidth: 1, borderBottomColor: '#27272a', backgroundColor: '#0a0a0a' }}>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border.default, backgroundColor: colors.bg.primary }}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -27,14 +28,16 @@ export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
             style={{ flex: 1, minWidth: 60, alignItems: 'center', paddingVertical: 12 }}
           >
             <Text
-              className={`text-sm font-medium ${
-                activeTab === tab.key ? 'text-[#3b82f6]' : 'text-[#71717a]'
-              }`}
+              className="text-sm font-medium"
+              style={{ color: activeTab === tab.key ? colors.accent.primary : colors.text.subtle }}
             >
               {tab.label}
             </Text>
             {activeTab === tab.key ? (
-              <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#3b82f6] rounded-full" />
+              <View
+                className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                style={{ backgroundColor: colors.accent.primary }}
+              />
             ) : null}
           </Pressable>
         ))}

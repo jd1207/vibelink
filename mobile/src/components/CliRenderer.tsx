@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useEffect } from 'react';
 import { View, Text, FlatList } from 'react-native';
 import { useMessageStore, EMPTY_EVENTS } from '../store/messages';
+import { colors } from '../constants/colors';
 
 // extract human-readable text from a claude event
 function formatEvent(raw: any): { label: string; text: string; color: string } | null {
@@ -10,14 +11,14 @@ function formatEvent(raw: any): { label: string; text: string; color: string } |
   switch (evt.type) {
     case 'system':
       if (evt.subtype === 'init') {
-        return { label: 'system', text: `session started in ${evt.cwd ?? 'unknown'}`, color: '#60a5fa' };
+        return { label: 'system', text: `session started in ${evt.cwd ?? 'unknown'}`, color: colors.accent.light };
       }
       return null;
 
     case 'stream_event': {
       const delta = evt.event?.delta;
       if (delta?.type === 'text_delta' && delta.text) {
-        return { label: '', text: delta.text, color: '#fafafa' };
+        return { label: '', text: delta.text, color: colors.text.primary };
       }
       return null;
     }
@@ -33,28 +34,28 @@ function formatEvent(raw: any): { label: string; text: string; color: string } |
           parts.push(`> ${block.name}(${input.length > 80 ? input.substring(0, 80) + '...' : input})`);
         }
       }
-      return parts.length ? { label: 'claude', text: parts.join('\n'), color: '#34d399' } : null;
+      return parts.length ? { label: 'claude', text: parts.join('\n'), color: colors.status.success } : null;
     }
 
     case 'user': {
       const content = evt.message?.content;
-      if (typeof content === 'string') return { label: 'you', text: content, color: '#60a5fa' };
+      if (typeof content === 'string') return { label: 'you', text: content, color: colors.accent.light };
       if (Array.isArray(content)) {
         const text = content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
-        if (text) return { label: 'you', text, color: '#60a5fa' };
+        if (text) return { label: 'you', text, color: colors.accent.light };
         const toolResult = content.find((b: any) => b.type === 'tool_result');
         if (toolResult) {
           const output = typeof toolResult.content === 'string'
             ? toolResult.content.substring(0, 300)
             : JSON.stringify(toolResult.content).substring(0, 300);
-          return { label: 'tool', text: output, color: '#fb923c' };
+          return { label: 'tool', text: output, color: colors.accent.lighter };
         }
       }
       return null;
     }
 
     case 'result':
-      return { label: 'done', text: `completed in ${evt.duration_ms ?? '?'}ms`, color: '#a1a1aa' };
+      return { label: 'done', text: `completed in ${evt.duration_ms ?? '?'}ms`, color: colors.text.muted };
 
     default:
       return null;
@@ -135,7 +136,7 @@ export function CliRenderer({ sessionId }: CliRendererProps) {
       contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
       ListEmptyComponent={
         <View className="flex-1 items-center justify-center pt-32">
-          <Text className="text-[#52525b] text-base font-mono">waiting for events...</Text>
+          <Text className="text-base font-mono" style={{ color: colors.text.dim }}>waiting for events...</Text>
         </View>
       }
     />

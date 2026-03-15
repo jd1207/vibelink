@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { colors } from '../constants/colors';
 
 interface DecisionTableProps {
   columns: string[];
@@ -32,35 +33,34 @@ export function DecisionTable({
   return (
     <View className="my-2">
       {title ? (
-        <Text className="text-[#fafafa] font-medium text-sm mb-2 px-1">{title}</Text>
+        <Text className="font-medium text-sm mb-2 px-1" style={{ color: colors.text.primary }}>{title}</Text>
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View>
-          <View className="flex-row bg-[#1e293b] rounded-t-lg">
+          <View className="flex-row rounded-t-lg" style={{ backgroundColor: colors.bg.elevated }}>
             {columns.map((col, i) => (
               <View key={i} className="px-4 py-2.5 min-w-[100]">
-                <Text className="text-[#60a5fa] font-bold text-xs">{col}</Text>
+                <Text className="font-bold text-xs" style={{ color: colors.accent.light }}>{col}</Text>
               </View>
             ))}
           </View>
           {rows.map((row, rowIdx) => {
             const isSelected = selectedRow === rowIdx;
-            const bgClass =
-              isSelected
-                ? 'bg-[#1e3a5f]'
-                : rowIdx % 2 === 0
-                  ? 'bg-[#18181b]'
-                  : 'bg-[#0a0a0a]';
+            const rowBg = isSelected
+              ? colors.interactive.selected
+              : rowIdx % 2 === 0
+                ? colors.bg.surface
+                : colors.bg.primary;
             return (
               <Pressable
                 key={rowIdx}
                 onPress={() => handleRowPress(rowIdx)}
                 disabled={!selectable}
               >
-                <View className={`flex-row ${bgClass}`}>
+                <View className="flex-row" style={{ backgroundColor: rowBg }}>
                   {row.map((cell, cellIdx) => (
                     <View key={cellIdx} className="px-4 py-2 min-w-[100]">
-                      <Text className="text-[#a1a1aa] text-xs">{cell}</Text>
+                      <Text className="text-xs" style={{ color: colors.text.muted }}>{cell}</Text>
                     </View>
                   ))}
                 </View>

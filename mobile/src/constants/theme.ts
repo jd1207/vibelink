@@ -1,13 +1,19 @@
-export const colors = {
-  bg: '#0a0a0a',
-  surface: '#18181b',
-  border: '#27272a',
-  text: '#fafafa',
-  textSecondary: '#a1a1aa',
-  accent: '#3b82f6',
-  success: '#10b981',
-  error: '#ef4444',
-  warning: '#f59e0b',
+import { colors } from './colors';
+
+// re-export the full palette
+export { colors } from './colors';
+
+// legacy flat export for any remaining consumers
+export const themeColors = {
+  bg: colors.bg.primary,
+  surface: colors.bg.surface,
+  border: colors.border.default,
+  text: colors.text.primary,
+  textSecondary: colors.text.muted,
+  accent: colors.accent.primary,
+  success: colors.status.success,
+  error: colors.status.error,
+  warning: colors.status.warning,
 };
 
 export const spacing = {

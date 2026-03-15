@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, Switch, Pressable, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { colors } from '../constants/colors';
 
 interface FormField {
   id: string;
@@ -37,7 +38,7 @@ export function FormRenderer({ fields, submitLabel, onInteraction }: FormRendere
   }, [fields, values, onInteraction]);
 
   return (
-    <View className="my-2 bg-[#18181b] rounded-lg p-4">
+    <View className="my-2 rounded-lg p-4" style={{ backgroundColor: colors.bg.surface }}>
       {fields.map((field) => (
         <FormFieldRow
           key={field.id}
@@ -48,9 +49,12 @@ export function FormRenderer({ fields, submitLabel, onInteraction }: FormRendere
       ))}
       <Pressable
         onPress={handleSubmit}
-        className="bg-[#3b82f6] rounded-xl py-3 items-center mt-3 active:opacity-80"
+        className="rounded-xl py-3 items-center mt-3 active:opacity-80"
+        style={{ backgroundColor: colors.accent.primary }}
       >
-        <Text className="text-white font-semibold text-sm">{submitLabel ?? 'submit'}</Text>
+        <Text className="font-semibold text-sm" style={{ color: colors.text.primary }}>
+          {submitLabel ?? 'submit'}
+        </Text>
       </Pressable>
     </View>
   );
@@ -68,12 +72,12 @@ function FormFieldRow({ field, value, onChange }: FormFieldRowProps) {
   if (field.type === 'checkbox') {
     return (
       <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-[#a1a1aa] text-sm">{label}</Text>
+        <Text className="text-sm" style={{ color: colors.text.muted }}>{label}</Text>
         <Switch
           value={!!value}
           onValueChange={onChange}
-          trackColor={{ false: '#27272a', true: '#3b82f6' }}
-          thumbColor="#fafafa"
+          trackColor={{ false: colors.border.subtle, true: colors.accent.primary }}
+          thumbColor={colors.text.primary}
         />
       </View>
     );
@@ -83,20 +87,21 @@ function FormFieldRow({ field, value, onChange }: FormFieldRowProps) {
     const selected = (value as string) ?? '';
     return (
       <View className="mb-3">
-        <Text className="text-[#a1a1aa] text-sm mb-1.5">{label}</Text>
+        <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>{label}</Text>
         <View className="flex-row flex-wrap gap-2">
           {field.options.map((opt) => (
             <Pressable
               key={opt}
               onPress={() => onChange(opt)}
-              className={`rounded-lg px-3 py-2 border ${
-                selected === opt
-                  ? 'border-[#3b82f6] bg-[#1e3a5f]'
-                  : 'border-[#27272a] bg-[#0a0a0a]'
-              }`}
+              className="rounded-lg px-3 py-2 border"
+              style={{
+                borderColor: selected === opt ? colors.accent.primary : colors.border.default,
+                backgroundColor: selected === opt ? colors.interactive.selected : colors.bg.secondary,
+              }}
             >
               <Text
-                className={`text-xs ${selected === opt ? 'text-[#60a5fa]' : 'text-[#a1a1aa]'}`}
+                className="text-xs"
+                style={{ color: selected === opt ? colors.accent.light : colors.text.muted }}
               >
                 {opt}
               </Text>
@@ -109,11 +114,16 @@ function FormFieldRow({ field, value, onChange }: FormFieldRowProps) {
 
   return (
     <View className="mb-3">
-      <Text className="text-[#a1a1aa] text-sm mb-1.5">{label}</Text>
+      <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>{label}</Text>
       <TextInput
-        className="bg-[#0a0a0a] border border-[#27272a] rounded-lg px-3 py-2.5 text-[#fafafa] text-sm"
+        className="rounded-lg px-3 py-2.5 text-sm border"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border.default,
+          color: colors.text.primary,
+        }}
         placeholder={field.placeholder ?? ''}
-        placeholderTextColor="#52525b"
+        placeholderTextColor={colors.text.dim}
         value={(value as string) ?? ''}
         onChangeText={onChange}
       />

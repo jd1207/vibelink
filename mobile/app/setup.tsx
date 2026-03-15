@@ -10,6 +10,7 @@ import {
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useConnectionStore } from '../src/store/connection';
+import { colors } from '../src/constants/colors';
 
 // conditional load — expo-camera requires native module compiled into APK
 let CameraViewComponent: React.ComponentType<any> | null = null;
@@ -135,14 +136,14 @@ export default function SetupScreen() {
             onPress={() => setScanning(false)}
             style={{ position: 'absolute', top: 60, right: 20, padding: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8 }}
           >
-            <Text style={{ color: '#fff', fontSize: 16 }}>cancel</Text>
+            <Text style={{ color: colors.text.primary, fontSize: 16 }}>cancel</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <View className="flex-1 bg-[#0a0a0a] px-6 pt-16">
-        <Text className="text-[#fafafa] text-2xl font-bold mb-2">vibelink</Text>
-        <Text className="text-[#71717a] text-sm mb-8">
+      <View className="flex-1 px-6 pt-16" style={{ backgroundColor: colors.bg.primary }}>
+        <Text className="text-2xl font-bold mb-2" style={{ color: colors.text.primary }}>vibelink</Text>
+        <Text className="text-sm mb-8" style={{ color: colors.text.subtle }}>
           connect to your bridge server to get started
         </Text>
 
@@ -157,39 +158,50 @@ export default function SetupScreen() {
                 scannedRef.current = false;
                 setScanning(true);
               }}
-              className="bg-[#3b82f6] p-4 rounded-xl items-center mb-6 active:opacity-80"
+              className="p-4 rounded-xl items-center mb-6 active:opacity-80"
+              style={{ backgroundColor: colors.accent.primary }}
             >
-              <Text className="text-[#fafafa] text-base font-semibold">
+              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
                 scan qr code
               </Text>
             </Pressable>
 
-            <Text className="text-[#a1a1aa] text-center mb-4">
+            <Text className="text-center mb-4" style={{ color: colors.text.muted }}>
               or enter manually
             </Text>
           </>
         ) : null}
 
-        <Text className="text-[#a1a1aa] text-sm mb-1.5">bridge url</Text>
+        <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>bridge url</Text>
         <TextInput
-          className="bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 text-[#fafafa] text-base mb-1"
+          className="rounded-xl px-4 py-3 text-base mb-1 border"
+          style={{
+            backgroundColor: colors.bg.surface,
+            borderColor: colors.border.default,
+            color: colors.text.primary,
+          }}
           placeholder="hostname:3400"
-          placeholderTextColor="#52525b"
+          placeholderTextColor={colors.text.dim}
           value={bridgeUrl}
           onChangeText={setBridgeUrl}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
         />
-        <Text className="text-[#a1a1aa] text-xs mt-1 mb-2">
+        <Text className="text-xs mt-1 mb-2" style={{ color: colors.text.muted }}>
           use your device's tailscale hostname or IP — both devices need tailscale on the same account
         </Text>
 
-        <Text className="text-[#a1a1aa] text-sm mb-1.5">auth token</Text>
+        <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>auth token</Text>
         <TextInput
-          className="bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 text-[#fafafa] text-base mb-6"
+          className="rounded-xl px-4 py-3 text-base mb-6 border"
+          style={{
+            backgroundColor: colors.bg.surface,
+            borderColor: colors.border.default,
+            color: colors.text.primary,
+          }}
           placeholder="optional"
-          placeholderTextColor="#52525b"
+          placeholderTextColor={colors.text.dim}
           value={authToken}
           onChangeText={setAuthToken}
           autoCapitalize="none"
@@ -198,18 +210,19 @@ export default function SetupScreen() {
         />
 
         {error ? (
-          <Text className="text-[#ef4444] text-sm mb-4">{error}</Text>
+          <Text className="text-sm mb-4" style={{ color: colors.status.error }}>{error}</Text>
         ) : null}
 
         <Pressable
           onPress={() => handleConnect()}
           disabled={testing}
-          className={`rounded-xl py-4 items-center ${testing ? 'bg-[#27272a]' : 'bg-[#3b82f6] active:opacity-80'}`}
+          className="rounded-xl py-4 items-center active:opacity-80"
+          style={{ backgroundColor: testing ? colors.border.subtle : colors.accent.primary }}
         >
           {testing ? (
-            <ActivityIndicator color="#fafafa" />
+            <ActivityIndicator color={colors.text.primary} />
           ) : (
-            <Text className="text-white font-semibold text-base">connect</Text>
+            <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>connect</Text>
           )}
         </Pressable>
       </View>
