@@ -6,7 +6,7 @@ import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
 import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS } from '../../src/store/messages';
 import { useConnectionStore } from '../../src/store/connection';
-import { useStreamStore } from '../../src/store/stream-store';
+import { useStreamStore, EMPTY_STREAM_TABS } from '../../src/store/stream-store';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
 import { WorkspaceView } from '../../src/components/WorkspaceView';
@@ -33,7 +33,7 @@ export default function SessionScreen() {
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
   const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
-  const streamTabs = useStreamStore((s) => s.streamTabs[sessionId] ?? {});
+  const streamTabs = useStreamStore((s) => s.streamTabs[sessionId] ?? EMPTY_STREAM_TABS);
   const pickerOpen = useStreamStore((s) => s.pickerOpen[sessionId] ?? false);
   const { setPickerOpen } = useStreamStore.getState();
   const bridgeUrl = useConnectionStore((s) => s.bridgeUrl);
