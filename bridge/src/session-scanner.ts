@@ -294,9 +294,12 @@ export interface HistoryMessage {
   sessionId: string;
 }
 
+// max user messages to include in history (plus their assistant responses)
+const HISTORY_USER_TURNS = 4;
+const HISTORY_TAIL_BYTES = 65536;
+
 export async function readSessionHistory(sessionId: string): Promise<HistoryMessage[]> {
   const projectsDir = join(homedir(), ".claude", "projects");
-  const messages: HistoryMessage[] = [];
 
   let projectDirs: string[];
   try {
@@ -315,14 +318,30 @@ export async function readSessionHistory(sessionId: string): Promise<HistoryMess
       continue;
     }
 
-    // found it — read the full file for history
+    // read only the tail of the file — recent messages are at the end
     let content: string;
     try {
-      content = await readFile(jsonlPath, "utf-8");
+      const fileStat = await stat(jsonlPath);
+      if (fileStat.size <= HISTORY_TAIL_BYTES) {
+        content = await readFile(jsonlPath, "utf-8");
+      } else {
+        const fh = await open(jsonlPath, "r");
+        try {
+          const buf = Buffer.alloc(HISTORY_TAIL_BYTES);
+          await fh.read(buf, 0, HISTORY_TAIL_BYTES, fileStat.size - HISTORY_TAIL_BYTES);
+          content = buf.toString("utf-8");
+          // trim partial first line
+          const nl = content.indexOf("\n");
+          if (nl >= 0) content = content.slice(nl + 1);
+        } finally {
+          await fh.close();
+        }
+      }
     } catch {
       return [];
     }
 
+    const allMessages: HistoryMessage[] = [];
     for (const line of content.split("\n")) {
       if (!line) continue;
       let entry: Record<string, unknown>;
@@ -334,7 +353,7 @@ export async function readSessionHistory(sessionId: string): Promise<HistoryMess
 
       const type = entry.type as string;
       if ((type === "user" || type === "assistant") && entry.message) {
-        messages.push({
+        allMessages.push({
           type: type as "user" | "assistant",
           message: entry.message as Record<string, unknown>,
           timestamp: (entry.timestamp as string) ?? "",
@@ -343,7 +362,20 @@ export async function readSessionHistory(sessionId: string): Promise<HistoryMess
       }
     }
 
-    return messages;
+    // find the last N user turns and include everything from that point
+    let userCount = 0;
+    let cutoff = allMessages.length;
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      if (allMessages[i].type === "user") {
+        userCount++;
+        if (userCount >= HISTORY_USER_TURNS) {
+          cutoff = i;
+          break;
+        }
+      }
+    }
+
+    return allMessages.slice(cutoff);
   }
 
   return [];
