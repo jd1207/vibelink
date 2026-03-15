@@ -5,9 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
 import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS } from '../../src/store/messages';
+import { useConnectionStore } from '../../src/store/connection';
+import { useStreamStore } from '../../src/store/stream-store';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
 import { WorkspaceView } from '../../src/components/WorkspaceView';
+import { StreamView } from '../../src/components/StreamView';
+import { WindowPicker } from '../../src/components/WindowPicker';
 import { TabBar } from '../../src/components/TabBar';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
@@ -29,6 +33,11 @@ export default function SessionScreen() {
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
   const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
+  const streamTabs = useStreamStore((s) => s.streamTabs[sessionId] ?? {});
+  const pickerOpen = useStreamStore((s) => s.pickerOpen[sessionId] ?? false);
+  const { setPickerOpen } = useStreamStore.getState();
+  const bridgeUrl = useConnectionStore((s) => s.bridgeUrl);
+  const authToken = useConnectionStore((s) => s.authToken);
 
   // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -118,14 +127,45 @@ export default function SessionScreen() {
       const t = tab as { id?: string; label?: string };
       if (t.id && t.label) tabs.push({ key: t.id, label: t.label });
     }
+    for (const [windowId, stream] of Object.entries(streamTabs)) {
+      tabs.push({ key: `stream-${windowId}`, label: stream.windowTitle || 'stream' });
+    }
+    tabs.push({ key: 'add-stream', label: '+' });
     return tabs;
-  }, [dynamicTabs]);
+  }, [dynamicTabs, streamTabs]);
 
   const handleComponentInteraction = useCallback(
     (componentId: string, action: string, value: unknown) => {
       sendRaw({ type: 'ui_interaction', componentId, action, value });
     },
     [sendRaw],
+  );
+
+  const handleTabPress = useCallback(
+    (tabKey: string) => {
+      if (tabKey === 'add-stream') {
+        sendRaw({ type: 'list_windows' });
+        setPickerOpen(sessionId, true);
+        return;
+      }
+      setActiveTab(tabKey);
+    },
+    [sendRaw, setPickerOpen, sessionId],
+  );
+
+  const handleStreamConfirm = useCallback(
+    (windowId: string) => {
+      sendRaw({ type: 'stream_confirm_response', windowId, accepted: true });
+    },
+    [sendRaw],
+  );
+
+  const handleStreamReject = useCallback(
+    (windowId: string) => {
+      sendRaw({ type: 'stream_confirm_response', windowId, accepted: false });
+      useStreamStore.getState().removeStreamTab(sessionId, windowId);
+    },
+    [sendRaw, sessionId],
   );
 
   const handlePermissionResponse = useCallback(
@@ -158,10 +198,18 @@ export default function SessionScreen() {
       <View
         style={{ flex: 1, backgroundColor: '#0a0a0a', paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
       >
-        <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={setActiveTab} />
+        <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={handleTabPress} />
 
         <View className="flex-1">
-          {activeTab === 'workspace' ? (
+          {activeTab.startsWith('stream-') ? (
+            <StreamView
+              sessionId={sessionId}
+              windowId={activeTab.replace('stream-', '')}
+              wsUrl={`ws://${bridgeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}/ws/${sessionId}?token=${encodeURIComponent(authToken)}`}
+              onConfirm={handleStreamConfirm}
+              onReject={handleStreamReject}
+            />
+          ) : activeTab === 'workspace' ? (
             <WorkspaceView sessionId={sessionId} onComponentInteraction={handleComponentInteraction} />
           ) : (
             <FlatList
@@ -210,6 +258,17 @@ export default function SessionScreen() {
         ) : null}
 
         <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
+
+        <WindowPicker
+          sessionId={sessionId}
+          visible={pickerOpen}
+          onClose={() => setPickerOpen(sessionId, false)}
+          onSelect={(w) => {
+            sendRaw({ type: 'start_stream', windowId: w.id });
+            setActiveTab(`stream-${w.id}`);
+          }}
+          onRefresh={() => sendRaw({ type: 'list_windows' })}
+        />
       </View>
     </>
   );
