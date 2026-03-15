@@ -4,7 +4,7 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
-import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS } from '../../src/store/messages';
+import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS, EMPTY_PERMISSION_QUEUE } from '../../src/store/messages';
 import { useConnectionStore } from '../../src/store/connection';
 import { useStreamStore, EMPTY_STREAM_TABS } from '../../src/store/stream-store';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
@@ -15,6 +15,7 @@ import { WindowPicker } from '../../src/components/WindowPicker';
 import { TabBar } from '../../src/components/TabBar';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
+import { formatToolName, formatToolInput } from '../../src/components/tool-format';
 
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
@@ -32,7 +33,8 @@ export default function SessionScreen() {
   const streamedMessages = useStreaming(sessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
-  const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
+  const permissionQueue = useMessageStore((s) => s.permissionQueue[sessionId] ?? EMPTY_PERMISSION_QUEUE);
+  const permissionRequest = permissionQueue[0] ?? null;
   const streamTabs = useStreamStore((s) => s.streamTabs[sessionId] ?? EMPTY_STREAM_TABS);
   const pickerOpen = useStreamStore((s) => s.pickerOpen[sessionId] ?? false);
   const { setPickerOpen } = useStreamStore.getState();
@@ -72,8 +74,8 @@ export default function SessionScreen() {
     for (const msg of streamedMessages) {
       if (msg.contentBlocks) {
         for (const block of msg.contentBlocks) {
-          if (block.type === 'tool_use' || block.type === 'tool_result') {
-            const isComplete = block.type === 'tool_result' || (!!block.id && completedToolIds.has(block.id));
+          if (block.type === 'tool_use') {
+            const isComplete = !!block.id && completedToolIds.has(block.id);
             items.push({ kind: 'tool', data: { ...block, isComplete }, messageId: msg.id });
           }
         }
@@ -184,11 +186,14 @@ export default function SessionScreen() {
 
   const handlePermissionResponse = useCallback(
     (behavior: 'allow' | 'deny') => {
-      if (!permissionRequest) return;
-      sendRaw({ type: 'permission_response', requestId: permissionRequest.requestId, behavior });
-      useMessageStore.getState().setPermissionRequest(sessionId, null);
+      // read directly from store to avoid stale closure when tapping rapidly
+      const queue = useMessageStore.getState().permissionQueue[sessionId];
+      const front = queue?.[0];
+      if (!front) return;
+      sendRaw({ type: 'permission_response', requestId: front.requestId, behavior });
+      useMessageStore.getState().shiftPermission(sessionId);
     },
-    [permissionRequest, sendRaw, sessionId],
+    [sendRaw, sessionId],
   );
 
   const renderGuiItem = useCallback(
@@ -248,9 +253,16 @@ export default function SessionScreen() {
           <View className="px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
             <View className="flex-row items-center gap-2">
               <View className="flex-1">
-                <Text className="text-[#fbbf24] text-xs font-semibold">
-                  {formatToolName(permissionRequest.toolName)}
-                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-[#fbbf24] text-xs font-semibold">
+                    {formatToolName(permissionRequest.toolName)}
+                  </Text>
+                  {permissionQueue.length > 1 ? (
+                    <Text className="text-[#71717a] text-[10px]">
+                      +{permissionQueue.length - 1} more
+                    </Text>
+                  ) : null}
+                </View>
                 <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
                   {formatToolInput(permissionRequest.toolName, permissionRequest.toolInput)}
                 </Text>
@@ -338,64 +350,4 @@ export default function SessionScreen() {
       </View>
     </>
   );
-}
-
-const TOOL_DESCRIPTIONS: Record<string, string> = {
-  Read: 'read file',
-  Write: 'write file',
-  Edit: 'edit file',
-  Bash: 'run command',
-  Glob: 'find files',
-  Grep: 'search code',
-  Agent: 'run agent',
-  WebFetch: 'fetch url',
-  WebSearch: 'web search',
-  NotebookEdit: 'edit notebook',
-};
-
-// primary param to show for each tool type
-const PRIMARY_PARAMS: Record<string, string[]> = {
-  Read: ['file_path'],
-  Write: ['file_path'],
-  Edit: ['file_path'],
-  Bash: ['command'],
-  Glob: ['pattern', 'path'],
-  Grep: ['pattern', 'path'],
-  Agent: ['prompt'],
-  WebFetch: ['url'],
-  WebSearch: ['query'],
-};
-
-function formatToolName(name: string): string {
-  // handle mcp__server__tool format
-  if (name.startsWith('mcp__')) {
-    const parts = name.split('__');
-    return parts.length >= 3 ? `${parts[1]}: ${parts.slice(2).join('_')}` : name;
-  }
-  const desc = TOOL_DESCRIPTIONS[name];
-  return desc ? `${name} — ${desc}` : name;
-}
-
-function formatToolInput(toolName: string, input: Record<string, unknown>): string {
-  const keys = PRIMARY_PARAMS[toolName];
-  if (keys) {
-    for (const key of keys) {
-      const val = input[key];
-      if (typeof val === 'string' && val.length > 0) {
-        const display = val.length > 100 ? val.substring(0, 97) + '...' : val;
-        return display;
-      }
-    }
-  }
-
-  // fallback: show first string param value
-  for (const val of Object.values(input)) {
-    if (typeof val === 'string' && val.length > 0) {
-      return val.length > 100 ? val.substring(0, 97) + '...' : val;
-    }
-  }
-
-  // last resort: compact JSON
-  const json = JSON.stringify(input);
-  return json.length > 100 ? json.substring(0, 97) + '...' : json;
 }

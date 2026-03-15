@@ -122,6 +122,28 @@ Permissions are handled via a Claude Code `PreToolUse` hook, NOT interactive pro
 
 The `PermissionRequest` hook event does NOT exist in Claude Code — only `PreToolUse` works.
 
+## QR Code Rules
+
+When the user asks for QR codes or needs to connect their phone, **always provide ALL QR codes together** in the same response:
+1. **Expo Dev Client** QR — `exp+vibelink://expo-development-client/?url=http://<TAILSCALE_IP>:<METRO_PORT>`
+2. **Bridge Server** QR — `vibelink://connect?host=<TAILSCALE_IP>&port=3400&token=<TOKEN>`
+
+**Bridge QR MUST use `vibelink://connect` URI format**, not a plain `http://` URL. The app's QR scanner (`setup.tsx`) rejects anything that doesn't start with `vibelink://connect`. See `scripts/show-qr.js` for the canonical format.
+
+The user cannot scroll back to see old QR codes in voice mode. Always give both, every time.
+
+**Metro port is NOT always 8081.** Check the actual running process with `ps aux | grep expo` or `ss -tlnp` before generating QR codes. The dev server may be on 8083 or another port. Port 8081 on Steam Deck is often CEF debugging, not Metro.
+
+**When testing worktree changes, Metro must run from that worktree.** The Expo dev client loads JavaScript from whichever Metro bundler it connects to. If Metro is running from the main repo, the phone gets the main repo's code — not the worktree's fixes. Before testing a worktree, kill any existing Metro and restart it from the worktree directory:
+```bash
+# kill old metro, start from worktree
+pkill -f "expo start" && cd <worktree>/mobile && npx expo start --dev-client --lan --port 8083
+```
+
+## Critical Learnings
+
+When you discover something that will bite us again (wrong port, env var gotcha, platform quirk), proactively say: "This seems like a critical learning — want me to save it to CLAUDE.md?" Don't rely on the memory system for these; put them directly in this file.
+
 ## Key Gotchas
 
 - `--verbose` is **required** when using `stream-json` — Claude silently exits with code 1 without it
@@ -137,6 +159,7 @@ The `PermissionRequest` hook event does NOT exist in Claude Code — only `PreTo
 - `react-native-keyboard-controller` and `react-native-webview` only work in standalone APK / dev client builds, not Expo Go — use conditional loading
 - Expo Go is NOT a supported setup path — use expo-dev-client for development, release APK for daily use
 - `update_ui` MCP tool sends `ui_modify` event type (not `ui_update`) — mobile dispatcher must handle both
+- **Zustand selector infinite loop**: NEVER use `?? []` or `?? {}` as fallback in a Zustand selector — it creates a new reference every render, triggering an infinite re-render loop (`Maximum update depth exceeded`). Always use a stable constant defined outside the component (e.g. `EMPTY_EVENTS`, `EMPTY_TABS`, `EMPTY_PERMISSION_QUEUE`) from the store module
 
 ## Implementation Phases
 
