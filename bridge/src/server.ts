@@ -76,6 +76,21 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     res.type("html").send(dashboardHtml(port));
   });
 
+  // serve the latest APK for easy phone install — no auth, like dashboard
+  expressApp.get("/apk", async (_req, res) => {
+    const { resolve, join } = await import("path");
+    const { existsSync } = await import("fs");
+    const mobileRoot = resolve(join(new URL(import.meta.url).pathname, "..", "..", "..", "mobile"));
+    const debugApk = join(mobileRoot, "android/app/build/outputs/apk/debug/app-debug.apk");
+    const releaseApk = join(mobileRoot, "android/app/build/outputs/apk/release/app-release.apk");
+    const apkPath = existsSync(releaseApk) ? releaseApk : existsSync(debugApk) ? debugApk : null;
+    if (!apkPath) {
+      res.status(404).json({ error: "no APK found — run the build first" });
+      return;
+    }
+    res.download(apkPath, "vibelink.apk");
+  });
+
   // restart endpoint — rebuilds and restarts the bridge process (localhost only, no auth)
   expressApp.post("/restart", (_req, res) => {
     res.json({ status: "restarting" });

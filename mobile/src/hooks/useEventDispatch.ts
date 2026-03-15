@@ -44,6 +44,7 @@ export function useEventDispatch(sessionId: string) {
             mcpServers: Array.isArray(evt.mcp_servers)
               ? evt.mcp_servers.map((s: unknown) => (typeof s === 'string' ? s : (s as { name?: string })?.name ?? String(s)))
               : undefined,
+            sessionStartedAt: Date.now(),
           };
           setMetadata(sessionId, meta);
         }
