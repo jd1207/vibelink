@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useMessageStore, EMPTY_COMPONENTS } from '../store/messages';
 import type { SessionMetadata, WorkspaceCanvas } from '../store/message-types';
 import { MetadataPanel } from './MetadataPanel';
@@ -62,7 +62,13 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
   );
 }
 
+const DESKTOP_WIDTH = 1280;
+
 function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
+  const [viewport, setViewport] = React.useState<'mobile' | 'desktop'>('mobile');
+  const [containerHeight, setContainerHeight] = React.useState(0);
+  const { width: screenWidth } = useWindowDimensions();
+
   if (!WebView) {
     return (
       <View className="flex-1 items-center justify-center">
@@ -74,28 +80,101 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
     );
   }
 
+  const isDesktop = viewport === 'desktop';
+  const scale = screenWidth / DESKTOP_WIDTH;
+
   const source = canvas.mode === 'html'
     ? { html: wrapHtml(canvas.html ?? '') }
     : { uri: canvas.url ?? '' };
 
   return (
     <View className="flex-1">
-      {canvas.title ? (
-        <View className="px-4 py-1.5 border-b border-[#27272a]">
-          <Text className="text-[#71717a] text-[10px]">{canvas.title}</Text>
+      <View className="px-4 py-1.5 border-b border-[#27272a] flex-row items-center justify-between">
+        <Text className="text-[#71717a] text-[10px] flex-1" numberOfLines={1}>
+          {canvas.title ?? ''}
+        </Text>
+        <ViewportToggle
+          mode={viewport}
+          onToggle={() => setViewport((m) => (m === 'mobile' ? 'desktop' : 'mobile'))}
+        />
+      </View>
+
+      <View
+        style={{ flex: 1, overflow: 'hidden' }}
+        onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
+      >
+        <View
+          style={
+            isDesktop
+              ? {
+                  width: DESKTOP_WIDTH,
+                  height: containerHeight > 0 ? containerHeight / scale : '100%',
+                  transform: [{ scale }],
+                  transformOrigin: 'top left',
+                }
+              : { flex: 1 }
+          }
+        >
+          <WebView
+            key={viewport}
+            source={source}
+            style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            startInLoadingState
+            scalesPageToFit={false}
+          />
         </View>
-      ) : null}
-      <WebView
-        source={source}
-        style={{ flex: 1, backgroundColor: '#0a0a0a' }}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        domStorageEnabled
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        startInLoadingState
-        scalesPageToFit={false}
+      </View>
+    </View>
+  );
+}
+
+function ViewportToggle({ mode, onToggle }: { mode: 'mobile' | 'desktop'; onToggle: () => void }) {
+  const isMobile = mode === 'mobile';
+  return (
+    <Pressable
+      onPress={onToggle}
+      className="flex-row items-center rounded px-2 py-1"
+      style={{ backgroundColor: '#18181b', gap: 6 }}
+    >
+      <PhoneIcon active={isMobile} />
+      <MonitorIcon active={!isMobile} />
+    </Pressable>
+  );
+}
+
+function PhoneIcon({ active }: { active: boolean }) {
+  return (
+    <View
+      style={{
+        width: 9,
+        height: 15,
+        borderRadius: 2,
+        borderWidth: 1.5,
+        borderColor: active ? '#3b82f6' : '#52525b',
+      }}
+    />
+  );
+}
+
+function MonitorIcon({ active }: { active: boolean }) {
+  const color = active ? '#3b82f6' : '#52525b';
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View
+        style={{
+          width: 15,
+          height: 10,
+          borderRadius: 1.5,
+          borderWidth: 1.5,
+          borderColor: color,
+        }}
       />
+      <View style={{ width: 7, height: 0, borderBottomWidth: 1.5, borderColor: color }} />
     </View>
   );
 }
