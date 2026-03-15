@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 
 interface Tab {
   key: string;
@@ -14,12 +14,17 @@ interface TabBarProps {
 
 export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
   return (
-    <View className="flex-row border-b border-[#27272a] bg-[#0a0a0a]">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="border-b border-[#27272a] bg-[#0a0a0a]"
+      contentContainerStyle={{ flexGrow: 1 }}
+    >
       {tabs.map((tab) => (
         <Pressable
           key={tab.key}
           onPress={() => onTabPress(tab.key)}
-          className="flex-1 items-center py-3"
+          style={{ paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center' }}
         >
           <Text
             className={`text-sm font-medium ${
@@ -29,10 +34,10 @@ export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
             {tab.label}
           </Text>
           {activeTab === tab.key ? (
-            <View className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#3b82f6] rounded-full" />
+            <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#3b82f6] rounded-full" />
           ) : null}
         </Pressable>
       ))}
-    </View>
+    </ScrollView>
   );
 }
