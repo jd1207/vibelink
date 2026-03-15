@@ -7,17 +7,13 @@ import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { useConnectionStore } from '../src/store/connection';
-import { colors } from '../src/constants/colors';
+import { useColors, useSettingsStore, THEME_KEY } from '../src/store/settings';
+import { themes, ThemeKey } from '../src/constants/colors';
 
-// keyboard-controller requires native modules — only available in standalone APK builds, not Expo Go
 const isExpoGo = Constants.appOwnership === 'expo';
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> | null = null;
 if (!isExpoGo) {
-  try {
-    KeyboardProvider = require('react-native-keyboard-controller').KeyboardProvider;
-  } catch {
-    // native module not available
-  }
+  try { KeyboardProvider = require('react-native-keyboard-controller').KeyboardProvider; } catch {}
 }
 
 const BRIDGE_URL_KEY = 'vibelink_bridge_url';
@@ -27,9 +23,16 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const setBridgeUrl = useConnectionStore((s) => s.setBridgeUrl);
   const setAuthToken = useConnectionStore((s) => s.setAuthToken);
+  const colors = useColors();
 
   useEffect(() => {
     (async () => {
+      // load theme before any UI renders
+      const savedTheme = await SecureStore.getItemAsync(THEME_KEY);
+      if (savedTheme && savedTheme in themes) {
+        useSettingsStore.setState({ theme: savedTheme as ThemeKey });
+      }
+
       const storedUrl = await SecureStore.getItemAsync(BRIDGE_URL_KEY);
       const storedToken = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
 
@@ -41,9 +44,7 @@ export default function RootLayout() {
       setReady(true);
 
       setTimeout(() => {
-        if (!storedUrl) {
-          router.replace('/setup');
-        }
+        if (!storedUrl) router.replace('/setup');
       }, 0);
     })();
   }, [setBridgeUrl, setAuthToken]);
@@ -51,34 +52,25 @@ export default function RootLayout() {
   const pendingDeepLink = useRef<string | null>(null);
   const initialUrlChecked = useRef(false);
 
-  // check for initial deep link (app launched via URI) — runs once
   useEffect(() => {
     if (initialUrlChecked.current) return;
     initialUrlChecked.current = true;
     Linking.getInitialURL().then((url) => {
       if (url) {
-        if (ready) {
-          handleDeepLink(url);
-        } else {
-          pendingDeepLink.current = url;
-        }
+        if (ready) handleDeepLink(url);
+        else pendingDeepLink.current = url;
       }
     });
   }, []);
 
-  // listen for deep links while app is running
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {
-      if (ready) {
-        handleDeepLink(url);
-      } else {
-        pendingDeepLink.current = url;
-      }
+      if (ready) handleDeepLink(url);
+      else pendingDeepLink.current = url;
     });
     return () => sub.remove();
   }, [ready]);
 
-  // process queued deep link after init completes
   useEffect(() => {
     if (ready && pendingDeepLink.current) {
       handleDeepLink(pendingDeepLink.current);
@@ -93,12 +85,7 @@ export default function RootLayout() {
       const host = parsed.searchParams.get('host');
       const port = parsed.searchParams.get('port') || '3400';
       const token = parsed.searchParams.get('token') || '';
-      if (host) {
-        router.replace({
-          pathname: '/setup',
-          params: { host, port, token },
-        });
-      }
+      if (host) router.replace({ pathname: '/setup', params: { host, port, token } });
     } catch {}
   }
 

@@ -1,13 +1,6 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View,
-  Text,
-  Pressable,
-  FlatList,
-  Alert,
-  Animated,
-  PanResponder,
-  Dimensions,
+  View, Text, Pressable, FlatList, Alert, Animated, PanResponder, Dimensions,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -15,6 +8,8 @@ import { useSessionStore, Session } from '../src/store/sessions';
 import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
+import { ThemePicker } from '../src/components/ThemePicker';
+import { useColors } from '../src/store/settings';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DELETE_THRESHOLD = -80;
@@ -31,43 +26,20 @@ function formatTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-interface SessionRowProps {
-  session: Session;
-  onPress: () => void;
-  onDelete: () => void;
-}
-
-function SessionRow({ session, onPress, onDelete }: SessionRowProps) {
+function SessionRow({ session, onPress, onDelete }: { session: Session; onPress: () => void; onDelete: () => void }) {
+  const colors = useColors();
   const translateX = useRef(new Animated.Value(0)).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 10 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-      onPanResponderMove: (_, gesture) => {
-        if (gesture.dx < 0) {
-          translateX.setValue(Math.max(gesture.dx, -120));
-        }
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx < DELETE_THRESHOLD) {
-          // show delete confirmation
-          Alert.alert(
-            'end session',
-            `stop claude and remove "${session.projectName}"?`,
-            [
-              {
-                text: 'cancel',
-                style: 'cancel',
-                onPress: () => Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(),
-              },
-              {
-                text: 'end session',
-                style: 'destructive',
-                onPress: onDelete,
-              },
-            ],
-          );
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderMove: (_, g) => { if (g.dx < 0) translateX.setValue(Math.max(g.dx, -120)); },
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < DELETE_THRESHOLD) {
+          Alert.alert('end session', `stop claude and remove "${session.projectName}"?`, [
+            { text: 'cancel', style: 'cancel', onPress: () => Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start() },
+            { text: 'end session', style: 'destructive', onPress: onDelete },
+          ]);
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
         }
@@ -77,40 +49,29 @@ function SessionRow({ session, onPress, onDelete }: SessionRowProps) {
 
   return (
     <View className="mx-4 mb-3">
-      {/* delete background */}
       <View className="absolute inset-0 bg-red-600 rounded-xl flex-row items-center justify-end px-5">
         <Text className="text-white font-semibold text-sm">end session</Text>
       </View>
-
-      {/* swipeable row */}
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
         <Pressable
           onPress={onPress}
-          className="bg-[#18181b] border border-[#27272a] rounded-xl p-4 active:opacity-70"
+          className="rounded-xl p-4 active:opacity-70 border"
+          style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default }}
         >
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-[#fafafa] font-medium text-base flex-1" numberOfLines={1}>
+            <Text className="font-medium text-base flex-1" numberOfLines={1} style={{ color: colors.text.primary }}>
               {session.projectName}
             </Text>
-            <Text className="text-[#a1a1aa] text-xs ml-2">
-              {formatTime(session.createdAt)}
-            </Text>
+            <Text className="text-xs ml-2" style={{ color: colors.text.muted }}>{formatTime(session.createdAt)}</Text>
           </View>
-
-          <Text className="text-[#52525b] text-xs mb-2" numberOfLines={1}>
-            {session.projectPath}
-          </Text>
-
+          <Text className="text-xs mb-2" numberOfLines={1} style={{ color: colors.text.dim }}>{session.projectPath}</Text>
           {session.lastMessage ? (
-            <Text className="text-[#a1a1aa] text-sm mb-2" numberOfLines={2}>
-              {session.lastMessage}
-            </Text>
+            <Text className="text-sm mb-2" numberOfLines={2} style={{ color: colors.text.muted }}>{session.lastMessage}</Text>
           ) : null}
-
-          {/* process status */}
           <View className="flex-row items-center gap-2">
-            <View className={`w-2 h-2 rounded-full ${session.alive ? 'bg-emerald-500' : 'bg-[#52525b]'}`} />
-            <Text className="text-[#71717a] text-xs">
+            <View className={`w-2 h-2 rounded-full ${session.alive ? 'bg-emerald-500' : ''}`}
+              style={session.alive ? undefined : { backgroundColor: colors.text.dim }} />
+            <Text className="text-xs" style={{ color: colors.text.subtle }}>
               {session.alive ? 'claude running' : 'session ended'}
             </Text>
           </View>
@@ -121,15 +82,16 @@ function SessionRow({ session, onPress, onDelete }: SessionRowProps) {
 }
 
 export default function SessionsScreen() {
+  const colors = useColors();
   const sessions = useSessionStore((s) => s.sessions);
   const sessionList = Object.values(sessions);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleDisconnect = useCallback(async () => {
+  const handleDisconnect = useCallback(() => {
     Alert.alert('disconnect', 'return to setup screen?', [
       { text: 'cancel', style: 'cancel' },
       {
-        text: 'disconnect',
-        style: 'destructive',
+        text: 'disconnect', style: 'destructive',
         onPress: async () => {
           await SecureStore.deleteItemAsync('vibelink_bridge_url');
           await SecureStore.deleteItemAsync('vibelink_auth_token');
@@ -144,16 +106,10 @@ export default function SessionsScreen() {
 
   const loadSessions = useCallback(() => {
     bridgeApi.getSessions()
-      .then((data) => {
-        useSessionStore.getState().setSessions(data);
-        useConnectionStore.getState().setConnected(true);
-      })
-      .catch(() => {
-        useConnectionStore.getState().setConnected(false);
-      });
+      .then((data) => { useSessionStore.getState().setSessions(data); useConnectionStore.getState().setConnected(true); })
+      .catch(() => { useConnectionStore.getState().setConnected(false); });
   }, []);
 
-  // load on mount and refresh every 5s
   useEffect(() => {
     loadSessions();
     const interval = setInterval(loadSessions, 5000);
@@ -161,9 +117,7 @@ export default function SessionsScreen() {
   }, [loadSessions]);
 
   const handleDelete = async (id: string) => {
-    try {
-      await bridgeApi.deleteSession(id);
-    } catch { /* ignore */ }
+    try { await bridgeApi.deleteSession(id); } catch {}
     useSessionStore.getState().removeSession(id);
   };
 
@@ -173,52 +127,48 @@ export default function SessionsScreen() {
         options={{
           title: '',
           headerTitle: () => (
-            <Pressable onPress={handleDisconnect} className="active:opacity-60">
-              <Text className="text-[#fafafa] text-lg font-semibold">vibelink</Text>
+            <Pressable onPress={() => setMenuOpen(true)} className="active:opacity-60">
+              <Text className="text-lg font-semibold" style={{ color: colors.text.primary }}>vibelink</Text>
             </Pressable>
           ),
           headerRight: () => <ConnectionBadge />,
         }}
       />
-      <View className="flex-1 bg-[#0a0a0a]">
-        {/* session count header */}
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         {sessionList.length > 0 && (
           <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-            <Text className="text-[#71717a] text-xs">
+            <Text className="text-xs" style={{ color: colors.text.subtle }}>
               {sessionList.filter(s => s.alive).length} active process{sessionList.filter(s => s.alive).length !== 1 ? 'es' : ''}
             </Text>
-            <Text className="text-[#52525b] text-xs">swipe left to end</Text>
+            <Text className="text-xs" style={{ color: colors.text.dim }}>swipe left to end</Text>
           </View>
         )}
-
         <FlatList
           data={sessionList}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingTop: sessionList.length > 0 ? 0 : 16, paddingBottom: 100 }}
           renderItem={({ item }) => (
-            <SessionRow
-              session={item}
-              onPress={() => router.push(`/session/${item.id}`)}
-              onDelete={() => handleDelete(item.id)}
-            />
+            <SessionRow session={item} onPress={() => router.push(`/session/${item.id}`)} onDelete={() => handleDelete(item.id)} />
           )}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center pt-32">
-              <Text className="text-[#52525b] text-lg mb-2">no sessions yet</Text>
-              <Text className="text-[#3f3f46] text-sm">tap new chat to start</Text>
+              <Text className="text-lg mb-2" style={{ color: colors.text.dim }}>no sessions yet</Text>
+              <Text className="text-sm" style={{ color: colors.text.subtle }}>tap new chat to start</Text>
             </View>
           }
         />
-
-        <View className="absolute bottom-0 left-0 right-0 pb-8 pt-4 px-4 bg-[#0a0a0a] border-t border-[#27272a]">
+        <View className="absolute bottom-0 left-0 right-0 pb-8 pt-4 px-4 border-t"
+          style={{ backgroundColor: colors.bg.primary, borderTopColor: colors.border.default }}>
           <Pressable
             onPress={() => router.push('/projects')}
-            className="bg-[#3b82f6] rounded-xl py-4 items-center active:opacity-80"
+            className="rounded-xl py-4 items-center active:opacity-80"
+            style={{ backgroundColor: colors.accent.primary }}
           >
-            <Text className="text-white font-semibold text-base">new chat</Text>
+            <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>new chat</Text>
           </Pressable>
         </View>
       </View>
+      <ThemePicker visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
     </>
   );
 }

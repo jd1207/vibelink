@@ -1,31 +1,17 @@
-import { colors } from './colors';
+import { themes } from './colors';
 
-// re-export the full palette
-export { colors } from './colors';
+export { themes, themeList } from './colors';
+export type { ThemeKey, ThemePalette } from './colors';
+export { useColors, useSettingsStore } from '../store/settings';
 
-// legacy flat export for any remaining consumers
+// legacy flat export — uses default theme for non-reactive consumers
+const d = themes['claude-code'];
+
 export const themeColors = {
-  bg: colors.bg.primary,
-  surface: colors.bg.surface,
-  border: colors.border.default,
-  text: colors.text.primary,
-  textSecondary: colors.text.muted,
-  accent: colors.accent.primary,
-  success: colors.status.success,
-  error: colors.status.error,
-  warning: colors.status.warning,
+  bg: d.bg.primary, surface: d.bg.surface, border: d.border.default,
+  text: d.text.primary, textSecondary: d.text.muted, accent: d.accent.primary,
+  success: d.status.success, error: d.status.error, warning: d.status.warning,
 };
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-};
-
-export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 20,
-};
+export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
+export const radius = { sm: 8, md: 12, lg: 20 };
