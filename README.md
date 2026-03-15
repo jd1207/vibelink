@@ -23,6 +23,22 @@ Everything runs on your machine and your Tailscale network. VibeLink spawns the 
 
 The project is open source and designed for developers who already use Claude Code and want a mobile-friendly way to interact with it. The Android APK is built locally (no app store required), and the entire codebase is cross-platform TypeScript.
 
+## How VibeLink Compares
+
+|  | VibeLink | Claude Remote Control | CloudCLI | OpenClaw |
+|---|---|---|---|---|
+| **Self-hosted** | Yes | No (Anthropic relay) | Optional ($7/mo cloud) | Yes (Docker) |
+| **Native mobile app** | Yes (React Native) | Yes (Claude app) | No (web only) | No (web only) |
+| **Open source** | Yes (MIT) | No | Yes (GPL-3.0) | Yes |
+| **Dynamic UI (MCP)** | Yes (render_ui) | No | No | No |
+| **Free** | Yes | Requires Max/Pro plan | Free tier + paid cloud | Yes |
+| **Permission control** | Yes (approve/deny) | Yes (built-in) | Limited | Limited |
+| **Multi-session** | Yes | Yes | Yes | Yes |
+| **Works without internet** | Yes (LAN only) | No | No (cloud) | Yes |
+| **Zero config** | setup.sh | `claude remote-control` | `npx` one-liner | Docker compose |
+
+**VibeLink is the only project with MCP-powered dynamic UI** — Claude can push interactive tables, forms, charts, and custom components directly to your phone. It's also the only fully self-hosted native mobile app with an MIT license.
+
 ## Roadmap
 
 ### Built
