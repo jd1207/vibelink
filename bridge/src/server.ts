@@ -10,6 +10,7 @@ import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
 import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
+import { scanClaudeSessions } from "./session-scanner.js";
 import { execSync } from "child_process";
 
 // get tailscale IP for rewriting localhost URLs so phone can reach dev servers
@@ -188,6 +189,17 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       next();
     });
   }
+
+  // all claude code sessions on this machine (scans ~/.claude/projects/)
+  expressApp.get("/claude-sessions", async (_req, res) => {
+    try {
+      const sessions = await scanClaudeSessions();
+      res.json(sessions);
+    } catch (err) {
+      console.error("[claude-sessions] scan failed:", err);
+      res.status(500).json({ error: "session scan failed" });
+    }
+  });
 
   expressApp.get("/projects", async (_req, res) => {
     const projects = await scanner.scan();
