@@ -134,6 +134,12 @@ The user cannot scroll back to see old QR codes in voice mode. Always give both,
 
 **Metro port is NOT always 8081.** Check the actual running process with `ps aux | grep expo` or `ss -tlnp` before generating QR codes. The dev server may be on 8083 or another port. Port 8081 on Steam Deck is often CEF debugging, not Metro.
 
+**When testing worktree changes, Metro must run from that worktree.** The Expo dev client loads JavaScript from whichever Metro bundler it connects to. If Metro is running from the main repo, the phone gets the main repo's code — not the worktree's fixes. Before testing a worktree, kill any existing Metro and restart it from the worktree directory:
+```bash
+# kill old metro, start from worktree
+pkill -f "expo start" && cd <worktree>/mobile && npx expo start --dev-client --lan --port 8083
+```
+
 ## Critical Learnings
 
 When you discover something that will bite us again (wrong port, env var gotcha, platform quirk), proactively say: "This seems like a critical learning — want me to save it to CLAUDE.md?" Don't rely on the memory system for these; put them directly in this file.
