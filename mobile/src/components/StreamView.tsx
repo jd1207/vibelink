@@ -59,7 +59,7 @@ ws.onmessage = (e) => {
   const now = performance.now();
   if (lt > 0) fps = 0.9*fps + 0.1*(1000/(now-lt));
   lt = now;
-  s.textContent = 'frames:'+fc+' fps:'+fps.toFixed(1)+' size:'+(jpeg.length/1024|0)+'KB';
+  s.textContent = fps.toFixed(1)+' fps | '+(jpeg.length/1024|0)+' KB';
 };
 </script></body></html>`;
 }

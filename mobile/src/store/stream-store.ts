@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import type { StreamTab, WindowInfo } from "./message-types";
 
-// stable empty refs to avoid infinite re-render loops in selectors
 const EMPTY_STREAM_TABS: Record<string, StreamTab> = {};
 const EMPTY_WINDOW_LIST: WindowInfo[] = [];
 
 export { EMPTY_STREAM_TABS, EMPTY_WINDOW_LIST };
+
+let streamCounter = 0;
 
 interface StreamState {
   streamTabs: Record<string, Record<string, StreamTab>>;
@@ -14,6 +15,7 @@ interface StreamState {
 
   addStreamTab: (sessionId: string, windowId: string, title: string, status?: StreamTab["status"]) => void;
   updateStreamTab: (sessionId: string, windowId: string, updates: Partial<StreamTab>) => void;
+  renameStreamTab: (sessionId: string, windowId: string, label: string) => void;
   removeStreamTab: (sessionId: string, windowId: string) => void;
   setWindowList: (sessionId: string, windows: WindowInfo[]) => void;
   setPickerOpen: (sessionId: string, open: boolean) => void;
@@ -25,16 +27,23 @@ export const useStreamStore = create<StreamState>((set) => ({
   windowLists: {},
   pickerOpen: {},
 
-  addStreamTab: (sessionId, windowId, title, status = "streaming") =>
+  addStreamTab: (sessionId, windowId, title, status = "streaming") => {
+    streamCounter++;
     set((s) => ({
       streamTabs: {
         ...s.streamTabs,
         [sessionId]: {
           ...s.streamTabs[sessionId],
-          [windowId]: { windowId, windowTitle: title, status },
+          [windowId]: {
+            windowId,
+            windowTitle: title,
+            tabLabel: `Stream ${streamCounter}`,
+            status,
+          },
         },
       },
-    })),
+    }));
+  },
 
   updateStreamTab: (sessionId, windowId, updates) =>
     set((s) => {
@@ -46,6 +55,21 @@ export const useStreamStore = create<StreamState>((set) => ({
           [sessionId]: {
             ...s.streamTabs[sessionId],
             [windowId]: { ...tab, ...updates },
+          },
+        },
+      };
+    }),
+
+  renameStreamTab: (sessionId, windowId, label) =>
+    set((s) => {
+      const tab = s.streamTabs[sessionId]?.[windowId];
+      if (!tab) return s;
+      return {
+        streamTabs: {
+          ...s.streamTabs,
+          [sessionId]: {
+            ...s.streamTabs[sessionId],
+            [windowId]: { ...tab, tabLabel: label.slice(0, 10) },
           },
         },
       };

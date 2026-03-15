@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
-import { View, Text, Pressable, FlatList, Keyboard } from 'react-native';
+import { View, Text, Pressable, FlatList, Keyboard, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
@@ -38,6 +38,10 @@ export default function SessionScreen() {
   const { setPickerOpen } = useStreamStore.getState();
   const bridgeUrl = useConnectionStore((s) => s.bridgeUrl);
   const authToken = useConnectionStore((s) => s.authToken);
+
+  // stream tab edit modal
+  const [editingStream, setEditingStream] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
 
   // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -128,7 +132,7 @@ export default function SessionScreen() {
       if (t.id && t.label) tabs.push({ key: t.id, label: t.label });
     }
     for (const [windowId, stream] of Object.entries(streamTabs)) {
-      tabs.push({ key: `stream-${windowId}`, label: stream.windowTitle || 'stream' });
+      tabs.push({ key: `stream-${windowId}`, label: stream.tabLabel || 'stream' });
     }
     tabs.push({ key: 'add-stream', label: '+' });
     return tabs;
@@ -148,9 +152,17 @@ export default function SessionScreen() {
         setPickerOpen(sessionId, true);
         return;
       }
+      // tapping already-active stream tab opens edit modal
+      if (tabKey === activeTab && tabKey.startsWith('stream-')) {
+        const wid = tabKey.replace('stream-', '');
+        const tab = useStreamStore.getState().streamTabs[sessionId]?.[wid];
+        setEditLabel(tab?.tabLabel || '');
+        setEditingStream(wid);
+        return;
+      }
       setActiveTab(tabKey);
     },
-    [sendRaw, setPickerOpen, sessionId],
+    [sendRaw, setPickerOpen, sessionId, activeTab],
   );
 
   const handleStreamConfirm = useCallback(
@@ -270,6 +282,57 @@ export default function SessionScreen() {
           }}
           onRefresh={() => sendRaw({ type: 'list_windows' })}
         />
+
+        <Modal visible={editingStream !== null} transparent animationType="fade">
+          <Pressable
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+            onPress={() => setEditingStream(null)}
+          >
+            <Pressable
+              style={{ backgroundColor: '#1c1c1e', borderRadius: 12, padding: 20, width: 260 }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={{ color: '#e2e8f0', fontSize: 15, fontWeight: '600', marginBottom: 12 }}>
+                rename tab
+              </Text>
+              <TextInput
+                value={editLabel}
+                onChangeText={(t) => setEditLabel(t.slice(0, 10))}
+                maxLength={10}
+                style={{
+                  backgroundColor: '#27272a', color: '#e2e8f0', borderRadius: 8,
+                  paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 16,
+                }}
+                autoFocus
+                selectTextOnFocus
+              />
+              <Pressable
+                onPress={() => {
+                  if (editingStream && editLabel.trim()) {
+                    useStreamStore.getState().renameStreamTab(sessionId, editingStream, editLabel.trim());
+                  }
+                  setEditingStream(null);
+                }}
+                style={{ backgroundColor: '#2563eb', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>save</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (editingStream) {
+                    sendRaw({ type: 'stop_stream', windowId: editingStream });
+                    useStreamStore.getState().removeStreamTab(sessionId, editingStream);
+                    setActiveTab('gui');
+                  }
+                  setEditingStream(null);
+                }}
+                style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>close stream</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </>
   );
