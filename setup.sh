@@ -136,23 +136,55 @@ PLISTEOF
   esac
 fi
 
-# print summary
+# detect connection info
+if command -v tailscale >/dev/null; then
+  IP=$(tailscale ip -4 2>/dev/null || echo "")
+fi
+IP="${IP:-localhost}"
+
+TOKEN=""
+if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
+  TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
+fi
+
+PORT=3400
+
 echo ""
 echo "=================================="
 echo "  VibeLink setup complete"
 echo "=================================="
-echo ""
-if command -v tailscale >/dev/null; then
-  IP=$(tailscale ip -4 2>/dev/null || echo "<tailscale-ip>")
-  echo "  bridge url: $IP:3400"
-else
-  echo "  bridge url: localhost:3400"
-fi
-if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
-  TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
+
+if [[ "$AUTO_MODE" == true ]]; then
+  # plain text output for Claude (can't render QR in stream-json)
+  echo ""
+  echo "  bridge url: $IP:$PORT"
   echo "  auth token: $TOKEN"
+  echo ""
+  echo "  Tell the user to:"
+  echo "  1. Download the APK from the GitHub Releases page"
+  echo "  2. Install Tailscale on their phone (same account as computer)"
+  echo "  3. Open VibeLink app and enter:"
+  echo "     Bridge: $IP:$PORT"
+  echo "     Token:  $TOKEN"
+else
+  # interactive mode: show QR codes
+  echo ""
+
+  # QR 1: APK download link (if GitHub repo URL known)
+  echo "  step 1: download the app"
+  echo "  get the APK from GitHub Releases or scan:"
+  echo "  https://github.com/jd1207/vibelink/releases/latest"
+  echo ""
+
+  # QR 2: connection info
+  if command -v node >/dev/null; then
+    node "$SCRIPT_DIR/scripts/show-qr.js" "$IP" "$PORT" "$TOKEN"
+  else
+    echo "  bridge url: $IP:$PORT"
+    echo "  auth token: $TOKEN"
+  fi
 fi
-echo ""
+
 echo "  start:  ./vibelink start"
 echo "  stop:   ./vibelink stop"
 echo "  status: ./vibelink status"
