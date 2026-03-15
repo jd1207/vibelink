@@ -57,10 +57,8 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
             </View>
           ))}
         </ScrollView>
-      ) : hasMetadata ? (
-        <WorkspaceFileBrowser sessionId={sessionId} />
       ) : (
-        <BlueprintEmpty />
+        <WorkspaceFileBrowser sessionId={sessionId} />
       )}
     </View>
   );
