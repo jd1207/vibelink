@@ -203,24 +203,26 @@ See package READMEs for internals:
 - [x] **MCP Server** -- registered with Claude Code, provides render_ui, create_tab, update_ui, request_input, send_notification tools
 - [x] **Mobile App** -- React Native (Expo) with session list, project picker, chat with streaming responses
 - [x] **Chat View** -- messages rendered as markdown with code blocks, tool activity indicators, streaming text
-- [x] **Terminal View** -- raw event stream showing exactly what Claude is doing
+- [x] **Workspace Tab** -- persistent canvas with session metadata, HTML rendering via MCP, and localhost preview
 - [x] **Multi-Session** -- run multiple Claude sessions in different project directories simultaneously
 - [x] **Project Discovery** -- auto-scans your filesystem for git repos and CLAUDE.md projects
 - [x] **Dashboard** -- localhost web UI for managing sessions and debugging (http://localhost:3400/dashboard)
 - [x] **Auth** -- token-based authentication for all connections
-- [x] **Per-Session Permissions** -- toggle to skip permissions or run with default Claude safety checks
+- [x] **Permission Control** -- PreToolUse hook gates every tool call, toggle to skip or approve individually
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
+- [x] **QR Code Setup** -- scan a QR code from the setup script to connect instantly
+- [x] **Deep Link Support** -- vibelink://connect URIs auto-fill connection info
+- [x] **Cross-Platform Setup** -- setup.sh (Mac/Linux) and setup.ps1 (Windows/WSL2)
+- [x] **Disconnect/Reconfigure** -- change bridge connection without reinstalling
 
 ### In Progress
 
-- [ ] **Permission approval in app** -- approve/deny tool use from your phone instead of skipping all permissions
-- [ ] **Keyboard handling** -- input bar stays above keyboard on all Android devices
-- [ ] **Streaming polish** -- typing indicator resolves cleanly when Claude finishes
-- [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed inline in chat
-- [ ] **Setup script testing** -- end-to-end validation of setup.sh for fresh installs
+- [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed in workspace and chat
+- [ ] **Setup script testing** -- end-to-end validation on fresh Mac and Windows installs
 
 ### Planned
 
+- [ ] **App Store / Play Store** -- publish to stores for one-tap install (no sideloading)
 - [ ] **Localhost preview** -- see your dev server running on your phone via stream_preview MCP tool
 - [ ] **Auto-discovery** -- find the Bridge automatically via mDNS or Tailscale MagicDNS (no manual IP entry)
 - [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
@@ -228,7 +230,6 @@ See package READMEs for internals:
 - [ ] **Push notifications** -- get notified when Claude finishes a long task
 - [ ] **GitHub integration** -- clone repos directly from the app
 - [ ] **iOS build guide** -- contributor documentation for building on Mac
-- [ ] **App Store / Play Store** -- publish to stores for one-tap install (no sideloading)
 - [ ] **npx vibelink-setup** -- cross-platform setup wizard, no git clone needed
 
 ## Contributing
