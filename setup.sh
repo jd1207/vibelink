@@ -144,11 +144,16 @@ PLISTEOF
   esac
 fi
 
-# detect connection info
+# detect connection info — prefer MagicDNS hostname over raw IP
+TS_HOSTNAME=""
 if command -v tailscale >/dev/null; then
   IP=$(tailscale ip -4 2>/dev/null || echo "")
+  if command -v node >/dev/null; then
+    TS_HOSTNAME=$(tailscale status --json 2>/dev/null | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).Self.HostName" 2>/dev/null || echo "")
+  fi
 fi
 IP="${IP:-localhost}"
+HOST="${TS_HOSTNAME:-$IP}"
 
 TOKEN=""
 if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
@@ -165,14 +170,14 @@ echo "=================================="
 if [[ "$AUTO_MODE" == true ]]; then
   # plain text output for Claude (can't render QR in stream-json)
   echo ""
-  echo "  bridge url: $IP:$PORT"
+  echo "  bridge url: $HOST:$PORT"
   echo "  auth token: $TOKEN"
   echo ""
   echo "  Tell the user to:"
   echo "  1. Download the APK from the GitHub Releases page"
   echo "  2. Install Tailscale on their phone (same account as computer)"
   echo "  3. Open VibeLink app and enter:"
-  echo "     Bridge: $IP:$PORT"
+  echo "     Bridge: $HOST:$PORT"
   echo "     Token:  $TOKEN"
 else
   # interactive mode: show QR codes
@@ -186,9 +191,9 @@ else
 
   # QR 2: connection info
   if command -v node >/dev/null; then
-    node "$SCRIPT_DIR/scripts/show-qr.js" "$IP" "$PORT" "$TOKEN"
+    node "$SCRIPT_DIR/scripts/show-qr.js" "$HOST" "$PORT" "$TOKEN"
   else
-    echo "  bridge url: $IP:$PORT"
+    echo "  bridge url: $HOST:$PORT"
     echo "  auth token: $TOKEN"
   fi
 fi
