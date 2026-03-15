@@ -10,6 +10,20 @@ import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
 import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
+import { execSync } from "child_process";
+
+// get tailscale IP for rewriting localhost URLs so phone can reach dev servers
+function getTailscaleIp(): string | null {
+  try {
+    return execSync("tailscale ip -4", { timeout: 3000 }).toString().trim();
+  } catch {
+    return null;
+  }
+}
+
+function rewriteLocalhostUrl(url: string, tailscaleIp: string): string {
+  return url.replace(/\b(localhost|127\.0\.0\.1)\b/, tailscaleIp);
+}
 
 interface AppOptions {
   port?: number;
@@ -434,6 +448,14 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
         cm?.stopAll();
       }
       // fall through to broadcast so clients know the stream stopped
+    }
+
+    // rewrite localhost URLs in workspace_url events so phone can reach them over tailscale
+    if (msg.type === "workspace_url" && typeof msg.url === "string") {
+      const tsIp = getTailscaleIp();
+      if (tsIp) {
+        msg = { ...msg, url: rewriteLocalhostUrl(msg.url as string, tsIp) };
+      }
     }
 
     const buffered = session.buffer.push(msg);

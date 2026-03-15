@@ -8,7 +8,7 @@ const VIBELINK_SYSTEM_PROMPT = [
   "",
   "You have these VibeLink workspace tools available via MCP:",
   "- render_html: Render HTML artifacts in the workspace tab (like Claude artifacts). Use for rich visual content, interactive demos, dashboards, data visualizations.",
-  "- set_preview_url: Load a URL in the workspace WebView. Use to show localhost dev servers (use Tailscale IP, not localhost). Great for showing the user what you're building.",
+  "- set_preview_url: Load a URL in the workspace WebView. Use localhost URLs — the bridge rewrites them for the phone automatically. Dev servers must bind to 0.0.0.0 (use --host 0.0.0.0 flag).",
   "- render_ui: Render structured UI components (tables, forms, code viewers, progress bars, trees).",
   "- clear_workspace: Reset the workspace canvas to empty.",
   "",
