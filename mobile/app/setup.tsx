@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useConnectionStore } from '../src/store/connection';
@@ -38,6 +38,7 @@ export default function SetupScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
   const { setBridgeUrl: storeSetUrl, setAuthToken: storeSetToken } = useConnectionStore();
+  const params = useLocalSearchParams<{ host?: string; port?: string; token?: string }>();
 
   const handleConnect = useCallback(async (overrideUrl?: string, overrideToken?: string) => {
     const url = (overrideUrl || bridgeUrl).trim();
@@ -88,6 +89,16 @@ export default function SetupScreen() {
       setError('not a vibelink qr code. try the one from your setup script.');
     }
   }, [handleConnect]);
+
+  // auto-connect when navigated from deep link with pre-filled params
+  useEffect(() => {
+    if (params.host) {
+      const prefillUrl = `${params.host}:${params.port || '3400'}`;
+      setBridgeUrl(prefillUrl);
+      if (params.token) setAuthToken(params.token);
+      handleConnect(prefillUrl, params.token || '');
+    }
+  }, [params.host]);
 
   return (
     <>
