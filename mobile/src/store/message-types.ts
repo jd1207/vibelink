@@ -80,6 +80,7 @@ export interface WorkspaceCanvas {
 export interface StreamTab {
   windowId: string;
   windowTitle: string;
+  tabLabel: string;
   status: 'confirming' | 'streaming' | 'stopped' | 'error';
   fps?: number;
   frameSize?: number;
