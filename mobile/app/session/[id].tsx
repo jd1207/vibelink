@@ -273,7 +273,7 @@ export default function SessionScreen() {
               <Pressable
                 onPress={() => handlePermissionResponse('allow')}
                 className="rounded-lg px-4 py-2 active:opacity-80"
-                style={{ backgroundColor: colors.status.successDark }}
+                style={{ backgroundColor: colors.accent.primary }}
               >
                 <Text className="text-white font-semibold text-sm">approve</Text>
               </Pressable>
