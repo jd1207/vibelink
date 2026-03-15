@@ -5,6 +5,7 @@ import { registerRenderUiTools } from "./tools/render-ui.js";
 import { registerTabTools } from "./tools/tabs.js";
 import { registerInputTools } from "./tools/input.js";
 import { registerNotifyTools } from "./tools/notify.js";
+import { registerWorkspaceTools } from "./tools/workspace.js";
 
 const sessionId = process.env.VIBELINK_SESSION_ID;
 if (!sessionId) {
@@ -21,6 +22,7 @@ registerRenderUiTools(server, ipc, sessionId);
 registerTabTools(server, ipc, sessionId);
 registerInputTools(server, ipc, sessionId);
 registerNotifyTools(server, ipc, sessionId);
+registerWorkspaceTools(server, ipc, sessionId);
 
 ipc.connect();
 

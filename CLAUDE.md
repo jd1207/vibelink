@@ -80,7 +80,7 @@ npm start                           # runs the bridge
 
 # mcp server
 cd mcp-server && npm install && npm run build
-claude mcp add vibelink --scope user -- node $(pwd)/mcp-server/dist/server.js
+claude mcp add vibelink --scope user -- node $(pwd)/mcp-server/dist/index.js
 
 # mobile app (android)
 cd mobile && npm install

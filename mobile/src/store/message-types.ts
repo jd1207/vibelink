@@ -14,6 +14,9 @@ export interface ClaudeEvent {
   componentId?: string;
   updates?: unknown;
   tab?: unknown;
+  html?: string;
+  url?: string;
+  title?: string;
   error?: string;
   resumable?: boolean;
   reason?: string;
@@ -42,4 +45,27 @@ export interface InputRequest {
   requestId: string;
   prompt: string;
   options?: string[];
+}
+
+export interface SessionMetadata {
+  model?: string;
+  cwd?: string;
+  sessionId?: string;
+  permissionMode?: string;
+  tools?: string[];
+  mcpServers?: string[];
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  costUsd?: number;
+  durationMs?: number;
+  numTurns?: number;
+}
+
+export interface WorkspaceCanvas {
+  mode: 'html' | 'url';
+  html?: string;
+  url?: string;
+  title?: string;
 }

@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-echo "=== VibeLink Setup ==="
+AUTO_MODE=false
+if [[ "${1:-}" == "--auto" ]]; then
+  AUTO_MODE=true
+fi
+
+echo ""
+echo "  _    _ ___ ___  ___ _    ___ _  _ _  __"
+echo " | |  / |_ _| _ )| __| |  |_ _| \\| | |/ /"
+echo " | \\/|  || || _ \\| _|| |__ | ||    |   < "
+echo "  \\_/\\_/|___|___/|___|____|___|_|\\_|_|\\_\\"
 echo ""
 
 # check prerequisites
@@ -32,7 +41,7 @@ if [ -f "$SETTINGS_FILE" ]; then
   if command -v jq >/dev/null; then
     # merge hook into existing settings
     jq --arg cmd "$HOOK_CMD" '
-      .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) + [{"type": "command", "command": $cmd}] | unique_by(.command))
+      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"type": "command", "command": $cmd}] | unique_by(.command))
     ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
   else
     echo "warning: jq not found, add permission hook manually to $SETTINGS_FILE"
@@ -42,7 +51,7 @@ else
   cat > "$SETTINGS_FILE" <<HOOKEOF
 {
   "hooks": {
-    "PermissionRequest": [
+    "PreToolUse": [
       {
         "type": "command",
         "command": "$HOOK_CMD"
@@ -63,10 +72,25 @@ else
   echo "bridge/.env already exists, keeping existing config"
 fi
 
-# systemd service (optional)
-read -p "install as systemd service? [y/N] " install_svc
+# background service (optional)
+if [[ "$AUTO_MODE" == true ]]; then
+  # start bridge directly in background (avoids sudo for systemd)
+  cd "$SCRIPT_DIR/bridge"
+  if [ -f .env ]; then
+    set -a; source .env; set +a
+  fi
+  nohup node dist/server.js > /tmp/vibelink-bridge.log 2>&1 &
+  echo "bridge started (pid $!, log at /tmp/vibelink-bridge.log)"
+  cd "$SCRIPT_DIR"
+  install_svc="n"
+else
+  read -p "install as background service? [y/N] " install_svc
+fi
+
 if [[ "$install_svc" =~ ^[Yy]$ ]]; then
-  sudo tee /etc/systemd/system/vibelink.service > /dev/null <<SVCEOF
+  case "$(uname)" in
+    Linux)
+      sudo tee /etc/systemd/system/vibelink.service > /dev/null <<SVCEOF
 [Unit]
 Description=VibeLink Bridge Server
 After=network.target tailscaled.service
@@ -82,45 +106,93 @@ EnvironmentFile=$SCRIPT_DIR/bridge/.env
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now vibelink
-  echo "vibelink service installed and started"
+      sudo systemctl daemon-reload
+      sudo systemctl enable --now vibelink
+      echo "vibelink systemd service installed and started"
+      ;;
+    Darwin)
+      TOKEN=""
+      if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
+        TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
+      fi
+      cat > ~/Library/LaunchAgents/com.vibelink.bridge.plist <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vibelink.bridge</string>
+  <key>ProgramArguments</key><array>
+    <string>$(which node)</string>
+    <string>$SCRIPT_DIR/bridge/dist/server.js</string>
+  </array>
+  <key>WorkingDirectory</key><string>$SCRIPT_DIR/bridge</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>AUTH_TOKEN</key><string>$TOKEN</string>
+    <key>PORT</key><string>3400</string>
+  </dict>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLISTEOF
+      launchctl load ~/Library/LaunchAgents/com.vibelink.bridge.plist
+      echo "vibelink launchd service installed and started"
+      ;;
+    *)
+      echo "warning: unsupported OS for service install, start manually with: node bridge/dist/server.js"
+      ;;
+  esac
 fi
 
-# android apk (optional)
-read -p "build android APK? [y/N] " build_apk
-if [[ "$build_apk" =~ ^[Yy]$ ]]; then
-  cd "$SCRIPT_DIR/mobile"
-  npm install
-  npx expo prebuild --platform android
-  if [ ! -f android/app/vibelink.keystore ]; then
-    keytool -genkeypair -v \
-      -keystore android/app/vibelink.keystore \
-      -alias vibelink -keyalg RSA -keysize 2048 \
-      -validity 10000 -storepass vibelink \
-      -dname "CN=VibeLink"
-  fi
-  cd android && ./gradlew assembleRelease && cd "$SCRIPT_DIR"
-  echo "APK built: mobile/android/app/build/outputs/apk/release/app-release.apk"
+# detect connection info
+if command -v tailscale >/dev/null; then
+  IP=$(tailscale ip -4 2>/dev/null || echo "")
+fi
+IP="${IP:-localhost}"
+
+TOKEN=""
+if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
+  TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
 fi
 
-# print summary
+PORT=3400
+
 echo ""
 echo "=================================="
 echo "  VibeLink setup complete"
 echo "=================================="
-echo ""
-if command -v tailscale >/dev/null; then
-  IP=$(tailscale ip -4 2>/dev/null || echo "<tailscale-ip>")
-  echo "  bridge url: $IP:3400"
-else
-  echo "  bridge url: localhost:3400"
-fi
-if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
-  TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
+
+if [[ "$AUTO_MODE" == true ]]; then
+  # plain text output for Claude (can't render QR in stream-json)
+  echo ""
+  echo "  bridge url: $IP:$PORT"
   echo "  auth token: $TOKEN"
+  echo ""
+  echo "  Tell the user to:"
+  echo "  1. Download the APK from the GitHub Releases page"
+  echo "  2. Install Tailscale on their phone (same account as computer)"
+  echo "  3. Open VibeLink app and enter:"
+  echo "     Bridge: $IP:$PORT"
+  echo "     Token:  $TOKEN"
+else
+  # interactive mode: show QR codes
+  echo ""
+
+  # QR 1: APK download link (if GitHub repo URL known)
+  echo "  step 1: download the app"
+  echo "  get the APK from GitHub Releases or scan:"
+  echo "  https://github.com/jd1207/vibelink/releases/latest"
+  echo ""
+
+  # QR 2: connection info
+  if command -v node >/dev/null; then
+    node "$SCRIPT_DIR/scripts/show-qr.js" "$IP" "$PORT" "$TOKEN"
+  else
+    echo "  bridge url: $IP:$PORT"
+    echo "  auth token: $TOKEN"
+  fi
 fi
-echo ""
+
 echo "  start:  ./vibelink start"
 echo "  stop:   ./vibelink stop"
 echo "  status: ./vibelink status"

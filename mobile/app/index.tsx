@@ -10,7 +10,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useSessionStore, Session } from '../src/store/sessions';
+import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
 
@@ -122,10 +124,33 @@ export default function SessionsScreen() {
   const sessions = useSessionStore((s) => s.sessions);
   const sessionList = Object.values(sessions);
 
+  const handleDisconnect = useCallback(async () => {
+    Alert.alert('disconnect', 'return to setup screen?', [
+      { text: 'cancel', style: 'cancel' },
+      {
+        text: 'disconnect',
+        style: 'destructive',
+        onPress: async () => {
+          await SecureStore.deleteItemAsync('vibelink_bridge_url');
+          await SecureStore.deleteItemAsync('vibelink_auth_token');
+          useConnectionStore.getState().setBridgeUrl('');
+          useConnectionStore.getState().setAuthToken('');
+          useConnectionStore.getState().setConnected(false);
+          router.replace('/setup');
+        },
+      },
+    ]);
+  }, []);
+
   const loadSessions = useCallback(() => {
     bridgeApi.getSessions()
-      .then((data) => useSessionStore.getState().setSessions(data))
-      .catch(() => {});
+      .then((data) => {
+        useSessionStore.getState().setSessions(data);
+        useConnectionStore.getState().setConnected(true);
+      })
+      .catch(() => {
+        useConnectionStore.getState().setConnected(false);
+      });
   }, []);
 
   // load on mount and refresh every 5s
@@ -146,7 +171,12 @@ export default function SessionsScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'vibelink',
+          title: '',
+          headerTitle: () => (
+            <Pressable onPress={handleDisconnect} className="active:opacity-60">
+              <Text className="text-[#fafafa] text-lg font-semibold">vibelink</Text>
+            </Pressable>
+          ),
           headerRight: () => <ConnectionBadge />,
         }}
       />
