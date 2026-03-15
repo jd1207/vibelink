@@ -25,19 +25,13 @@ The project is open source and designed for developers who already use Claude Co
 
 ## How VibeLink Compares
 
-|  | VibeLink | Claude Remote Control | CloudCLI | OpenClaw |
-|---|---|---|---|---|
-| **Self-hosted** | Yes | No (Anthropic relay) | Optional ($7/mo cloud) | Yes (Docker) |
-| **Native mobile app** | Yes (React Native) | Yes (Claude app) | No (web only) | No (web only) |
-| **Open source** | Yes (MIT) | No | Yes (GPL-3.0) | Yes |
-| **Dynamic UI (MCP)** | Yes (render_ui) | No | No | No |
-| **Free** | Yes | Requires Max/Pro plan | Free tier + paid cloud | Yes |
-| **Permission control** | Yes (approve/deny) | Yes (built-in) | Limited | Limited |
-| **Multi-session** | Yes | Yes | Yes | Yes |
-| **Works without internet** | Yes (LAN only) | No | No (cloud) | Yes |
-| **Zero config** | setup.sh | `claude remote-control` | `npx` one-liner | Docker compose |
+**VibeLink** — self-hosted, native mobile app, MIT license, MCP dynamic UI
 
-**VibeLink is the only project with MCP-powered dynamic UI** — Claude can push interactive tables, forms, charts, and custom components directly to your phone. It's also the only fully self-hosted native mobile app with an MIT license.
+> **vs Claude Remote Control** — official Anthropic feature. Zero setup (`claude remote-control`), but requires Max/Pro subscription, routes through Anthropic's servers, no custom UI, not self-hosted, not open source.
+
+> **vs OpenClaw** — open source, Docker-based web UI. Not a native mobile app, no MCP integration. Had a WebSocket RCE vulnerability (CVE-2026-25253).
+
+**Only VibeLink has MCP-powered dynamic UI** — Claude can push interactive tables, forms, charts, and custom components directly to your phone. Fully self-hosted, nothing leaves your network.
 
 ## Roadmap
 
@@ -76,42 +70,27 @@ The project is open source and designed for developers who already use Claude Co
 ## Architecture
 
 ```
-+-------------------+                         +------------------------------+
-|                   |     Tailscale (E2E      |                              |
-|  React Native     |     encrypted)          |  Bridge Server (Node.js)     |
-|  App (Phone)      |<--- WebSocket --------->|                              |
-|                   |<--- REST/HTTP --------->|  - REST API (/projects, etc) |
-|  - Session list   |                         |  - WebSocket (per-session)   |
-|  - Chat view      |                         |  - Event buffer (200 events) |
-|  - Terminal view   |                         |  - Project scanner           |
-|  - Dynamic tabs   |                         |                              |
-|                   |                         |  Spawns per session:         |
-+-------------------+                         |  +- claude CLI subprocess    |
-                                              |     (bidirectional NDJSON)   |
-                                              +------------------------------+
-                                                            ^
-                                                            | Unix socket IPC
-                                              +------------------------------+
-                                              |                              |
-                                              |  VibeLink MCP Server         |
-                                              |  (auto-launched by Claude)   |
-                                              |                              |
-                                              |  Tools:                      |
-                                              |  - render_ui, update_ui      |
-                                              |  - create_tab, update_tab    |
-                                              |  - request_input             |
-                                              |  - send_notification         |
-                                              +------------------------------+
+Phone (React Native)
+  |
+  | WebSocket + REST
+  | (over Tailscale)
+  v
+Bridge Server (Node.js)
+  |               |
+  | stdin/stdout   | Unix socket
+  | NDJSON         | IPC
+  v               v
+Claude CLI     MCP Server
+(subprocess)   (render_ui, tabs,
+               request_input)
 ```
 
 ## Requirements
 
-| Requirement | Version | Notes |
-|---|---|---|
-| Node.js | 22+ | Bridge and MCP server runtime |
-| Claude Code CLI | Latest | Must be installed and authenticated |
-| Tailscale | Any | On both workstation and phone, same account |
-| Java | 17+ | Only needed for building Android APK |
+- **Node.js 22+** — bridge and MCP server
+- **Claude Code CLI** — installed and authenticated
+- **Tailscale** — on workstation + phone (same account)
+- **Java 17+** — only for building Android APK
 
 ## Quick Start
 
