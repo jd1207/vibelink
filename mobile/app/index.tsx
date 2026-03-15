@@ -15,6 +15,8 @@ import { useSessionStore, Session } from '../src/store/sessions';
 import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
+import { ThemePicker } from '../src/components/ThemePicker';
+import { useColors } from '../src/store/settings';
 
 interface RecentMessage {
   role: 'user' | 'assistant';
@@ -78,6 +80,7 @@ interface SessionRowProps {
 }
 
 function SessionRow({ session, onPress, onDelete, vibelinkSession }: SessionRowProps) {
+  const colors = useColors();
   const modelLabel = formatModel(session.model);
   const lastUserMsg = [...session.recentMessages]
     .reverse()
@@ -106,11 +109,7 @@ function SessionRow({ session, onPress, onDelete, vibelinkSession }: SessionRowP
                 onPress: () =>
                   Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(),
               },
-              {
-                text: 'delete',
-                style: 'destructive',
-                onPress: onDelete,
-              },
+              { text: 'delete', style: 'destructive', onPress: onDelete },
             ],
           );
         } else {
@@ -122,70 +121,62 @@ function SessionRow({ session, onPress, onDelete, vibelinkSession }: SessionRowP
 
   return (
     <View className="mx-4 mb-3">
-      {/* delete background */}
       <View className="absolute inset-0 bg-red-600 rounded-xl flex-row items-center justify-end px-5">
         <Text className="text-white font-semibold text-sm">delete</Text>
       </View>
 
-      {/* swipeable row */}
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
         <Pressable
           onPress={onPress}
-          className="bg-[#18181b] border border-[#27272a] rounded-xl p-4 active:opacity-70"
+          className="rounded-xl p-4 active:opacity-70 border"
+          style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default }}
         >
-          {/* top row: project name + time */}
           <View className="flex-row items-center justify-between mb-1">
-            <Text
-              className="text-[#fafafa] font-medium text-base flex-1"
-              numberOfLines={1}
-            >
+            <Text className="font-medium text-base flex-1" numberOfLines={1} style={{ color: colors.text.primary }}>
               {session.projectName}
             </Text>
-            <Text className="text-[#a1a1aa] text-xs ml-2">
+            <Text className="text-xs ml-2" style={{ color: colors.text.muted }}>
               {formatTime(session.lastActivity)}
             </Text>
           </View>
 
-          {/* badges: model, branch, vibelink status */}
           <View className="flex-row items-center gap-1.5 mb-2">
-            {session.alive && (
+            {session.alive ? (
               <View className="flex-row items-center gap-1">
-                <View className="w-2 h-2 rounded-full bg-emerald-500" />
-                <Text className="text-emerald-400 text-xs">running</Text>
+                <View className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.status.success }} />
+                <Text className="text-xs" style={{ color: colors.status.success }}>running</Text>
               </View>
-            )}
-            {!session.alive && (
+            ) : (
               <View className="flex-row items-center gap-1">
-                <View className="w-2 h-2 rounded-full bg-[#52525b]" />
-                <Text className="text-[#71717a] text-xs">ended</Text>
+                <View className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.text.dim }} />
+                <Text className="text-xs" style={{ color: colors.text.subtle }}>ended</Text>
               </View>
             )}
             {modelLabel ? (
-              <View className="bg-[#1d3557] rounded px-1.5 py-0.5 ml-1">
-                <Text className="text-[#60a5fa] text-xs">{modelLabel}</Text>
+              <View className="rounded px-1.5 py-0.5 ml-1" style={{ backgroundColor: colors.bg.secondary }}>
+                <Text className="text-xs" style={{ color: colors.accent.primary }}>{modelLabel}</Text>
               </View>
             ) : null}
             {session.gitBranch ? (
-              <View className="bg-[#27272a] rounded px-1.5 py-0.5">
-                <Text className="text-[#a1a1aa] text-xs" numberOfLines={1}>
+              <View className="rounded px-1.5 py-0.5" style={{ backgroundColor: colors.bg.secondary }}>
+                <Text className="text-xs" numberOfLines={1} style={{ color: colors.text.muted }}>
                   {session.gitBranch}
                 </Text>
               </View>
             ) : null}
             {vibelinkSession ? (
-              <View className="bg-[#164e3f] rounded px-1.5 py-0.5">
-                <Text className="text-emerald-300 text-xs">vibelink</Text>
+              <View className="rounded px-1.5 py-0.5" style={{ backgroundColor: colors.bg.secondary }}>
+                <Text className="text-xs" style={{ color: colors.status.success }}>vibelink</Text>
               </View>
             ) : null}
           </View>
 
-          {/* last user message preview */}
           {lastUserMsg ? (
-            <Text className="text-[#a1a1aa] text-sm" numberOfLines={2}>
+            <Text className="text-sm" numberOfLines={2} style={{ color: colors.text.muted }}>
               {lastUserMsg.text}
             </Text>
           ) : (
-            <Text className="text-[#52525b] text-xs" numberOfLines={1}>
+            <Text className="text-xs" numberOfLines={1} style={{ color: colors.text.dim }}>
               {session.projectPath}
             </Text>
           )}
@@ -201,9 +192,11 @@ interface SectionData {
 }
 
 export default function SessionsScreen() {
+  const colors = useColors();
   const [claudeSessions, setClaudeSessions] = useState<ClaudeSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const vibelinkSessions = useSessionStore((s) => s.sessions);
 
   const loadSessions = useCallback(async () => {
@@ -296,7 +289,6 @@ export default function SessionsScreen() {
 
   const handleSessionPress = useCallback(
     (session: ClaudeSession) => {
-      // check for an existing vibelink session we can reuse
       const existingVl = Object.values(vibelinkSessions).find(
         (vl) => vl.projectPath === session.projectPath && vl.alive,
       );
@@ -305,8 +297,6 @@ export default function SessionsScreen() {
         return;
       }
 
-      // always pass resumeSessionId so Claude gets the conversation history
-      // from the JSONL — the new process picks up where the CLI left off
       createVibelinkSession(session.projectPath, session.sessionId)
         .then((newSession) => {
           useSessionStore.getState().addSession(newSession);
@@ -319,7 +309,6 @@ export default function SessionsScreen() {
     [vibelinkSessions, createVibelinkSession],
   );
 
-  // group sessions into sections — scanner is source of truth
   const sections: SectionData[] = [];
   const alive = claudeSessions.filter((s) => s.alive);
   const recent = claudeSessions.filter((s) => !s.alive).slice(0, 20);
@@ -337,20 +326,18 @@ export default function SessionsScreen() {
         options={{
           title: '',
           headerTitle: () => (
-            <Pressable onPress={handleDisconnect} className="active:opacity-60">
-              <Text className="text-[#fafafa] text-lg font-semibold">
-                vibelink
-              </Text>
+            <Pressable onPress={() => setMenuOpen(true)} className="active:opacity-60">
+              <Text className="text-lg font-semibold" style={{ color: colors.text.primary }}>vibelink</Text>
             </Pressable>
           ),
           headerRight: () => <ConnectionBadge />,
         }}
       />
-      <View className="flex-1 bg-[#0a0a0a]">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         {loading && (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#3b82f6" />
-            <Text className="text-[#71717a] mt-3 text-sm">
+            <ActivityIndicator color={colors.accent.primary} />
+            <Text className="mt-3 text-sm" style={{ color: colors.text.subtle }}>
               scanning sessions...
             </Text>
           </View>
@@ -358,14 +345,15 @@ export default function SessionsScreen() {
 
         {error && !loading && (
           <View className="flex-1 items-center justify-center px-8">
-            <Text className="text-[#ef4444] text-base mb-2 text-center">
+            <Text className="text-base mb-2 text-center" style={{ color: colors.status.error }}>
               {error}
             </Text>
             <Pressable
               onPress={loadSessions}
-              className="bg-[#18181b] border border-[#27272a] rounded-lg px-4 py-2 mt-2"
+              className="rounded-lg px-4 py-2 mt-2 border"
+              style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default }}
             >
-              <Text className="text-[#a1a1aa]">retry</Text>
+              <Text style={{ color: colors.text.muted }}>retry</Text>
             </Pressable>
           </View>
         )}
@@ -377,10 +365,10 @@ export default function SessionsScreen() {
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
             renderSectionHeader={({ section }) => (
               <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-                <Text className="text-[#71717a] text-xs uppercase tracking-wider">
+                <Text className="text-xs uppercase tracking-wider" style={{ color: colors.text.subtle }}>
                   {section.title}
                 </Text>
-                <Text className="text-[#52525b] text-xs">
+                <Text className="text-xs" style={{ color: colors.text.dim }}>
                   {section.data.length} · swipe to delete
                 </Text>
               </View>
@@ -400,10 +388,10 @@ export default function SessionsScreen() {
             }}
             ListEmptyComponent={
               <View className="flex-1 items-center justify-center pt-32">
-                <Text className="text-[#52525b] text-lg mb-2">
+                <Text className="text-lg mb-2" style={{ color: colors.text.dim }}>
                   no claude sessions found
                 </Text>
-                <Text className="text-[#3f3f46] text-sm">
+                <Text className="text-sm" style={{ color: colors.text.subtle }}>
                   start a claude code session to see it here
                 </Text>
               </View>
@@ -411,17 +399,20 @@ export default function SessionsScreen() {
           />
         )}
 
-        <View className="absolute bottom-0 left-0 right-0 pb-8 pt-4 px-4 bg-[#0a0a0a] border-t border-[#27272a]">
+        <View className="absolute bottom-0 left-0 right-0 pb-8 pt-4 px-4 border-t"
+          style={{ backgroundColor: colors.bg.primary, borderTopColor: colors.border.default }}>
           <Pressable
             onPress={() => router.push('/projects')}
-            className="bg-[#3b82f6] rounded-xl py-4 items-center active:opacity-80"
+            className="rounded-xl py-4 items-center active:opacity-80"
+            style={{ backgroundColor: colors.accent.primary }}
           >
-            <Text className="text-white font-semibold text-base">
+            <Text className="font-semibold text-base" style={{ color: colors.text.onAccent }}>
               new session
             </Text>
           </Pressable>
         </View>
       </View>
+      <ThemePicker visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
     </>
   );
 }
