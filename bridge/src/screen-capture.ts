@@ -1,6 +1,21 @@
 import { spawn, execSync, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
+import { readdirSync } from "fs";
 import { config } from "./config.js";
+
+// find the xauth file for X11 authentication
+function findXauthority(): string {
+  const uid = process.getuid?.() ?? 1000;
+  const dir = `/run/user/${uid}`;
+  try {
+    const files = readdirSync(dir);
+    const xauth = files.find((f) => f.startsWith("xauth_"));
+    if (xauth) return `${dir}/${xauth}`;
+  } catch {
+    // dir not readable
+  }
+  return `${process.env.HOME}/.Xauthority`;
+}
 
 // --- types ---
 
@@ -197,6 +212,8 @@ export class CaptureManager extends EventEmitter {
 
     // convert hex window id to decimal for ffmpeg
     const decId = parseInt(windowId, 16).toString(10);
+    const xauth = findXauthority();
+    console.log(`[capture] starting ffmpeg: windowId=${windowId} decId=${decId} DISPLAY=:0 XAUTHORITY=${xauth}`);
 
     const ffmpeg = spawn(
       "ffmpeg",
@@ -213,6 +230,12 @@ export class CaptureManager extends EventEmitter {
       ],
       {
         stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          DISPLAY: ":0",
+          XAUTHORITY: findXauthority(),
+          HOME: process.env.HOME || "/home/deck",
+        },
       }
     );
 
@@ -232,16 +255,18 @@ export class CaptureManager extends EventEmitter {
       }
     });
 
-    ffmpeg.stderr!.on("data", () => {
-      // ffmpeg writes progress to stderr — ignore
+    ffmpeg.stderr!.on("data", (chunk: Buffer) => {
+      console.log(`[ffmpeg:${windowId}] ${chunk.toString().trim()}`);
     });
 
     ffmpeg.on("error", (err) => {
+      console.error(`[ffmpeg:${windowId}] spawn error:`, err.message);
       this.streams.delete(windowId);
       this.emit("error", windowId, err);
     });
 
     ffmpeg.on("close", (code) => {
+      console.log(`[ffmpeg:${windowId}] exited with code ${code}`);
       this.streams.delete(windowId);
       if (code !== 0 && code !== null) {
         this.emit(
