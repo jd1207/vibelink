@@ -122,6 +122,20 @@ Permissions are handled via a Claude Code `PreToolUse` hook, NOT interactive pro
 
 The `PermissionRequest` hook event does NOT exist in Claude Code — only `PreToolUse` works.
 
+## QR Code Rules
+
+When the user asks for QR codes or needs to connect their phone, **always provide ALL QR codes together** in the same response:
+1. **Expo Dev Client** QR — `exp+vibelink://expo-development-client/?url=http://<TAILSCALE_IP>:<METRO_PORT>`
+2. **Bridge Server** QR — `http://<TAILSCALE_IP>:3400`
+
+The user cannot scroll back to see old QR codes in voice mode. Always give both, every time.
+
+**Metro port is NOT always 8081.** Check the actual running process with `ps aux | grep expo` or `ss -tlnp` before generating QR codes. The dev server may be on 8083 or another port. Port 8081 on Steam Deck is often CEF debugging, not Metro.
+
+## Critical Learnings
+
+When you discover something that will bite us again (wrong port, env var gotcha, platform quirk), proactively say: "This seems like a critical learning — want me to save it to CLAUDE.md?" Don't rely on the memory system for these; put them directly in this file.
+
 ## Key Gotchas
 
 - `--verbose` is **required** when using `stream-json` — Claude silently exits with code 1 without it
