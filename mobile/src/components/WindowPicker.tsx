@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal } from "react-native";
-import { useStreamStore } from "../store/stream-store";
+import { useStreamStore, EMPTY_WINDOW_LIST } from "../store/stream-store";
 import type { WindowInfo } from "../store/message-types";
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function WindowPicker({ sessionId, visible, onClose, onSelect, onRefresh }: Props) {
-  const windows = useStreamStore((s) => s.windowLists[sessionId] ?? []);
+  const windows = useStreamStore((s) => s.windowLists[sessionId] ?? EMPTY_WINDOW_LIST);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

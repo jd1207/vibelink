@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { StreamTab, WindowInfo } from "./message-types";
 
+// stable empty refs to avoid infinite re-render loops in selectors
+const EMPTY_STREAM_TABS: Record<string, StreamTab> = {};
+const EMPTY_WINDOW_LIST: WindowInfo[] = [];
+
+export { EMPTY_STREAM_TABS, EMPTY_WINDOW_LIST };
+
 interface StreamState {
   streamTabs: Record<string, Record<string, StreamTab>>;
   windowLists: Record<string, WindowInfo[]>;
