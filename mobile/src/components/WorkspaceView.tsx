@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useMessageStore, EMPTY_COMPONENTS } from '../store/messages';
 import type { SessionMetadata, WorkspaceCanvas } from '../store/message-types';
 import { MetadataPanel } from './MetadataPanel';
 import { DynamicRenderer } from './DynamicRenderer';
+import { FileBrowser } from './FileBrowser';
+import { useFileBrowser } from '../hooks/useFileBrowser';
 
 // conditional load — react-native-webview not available in Expo Go
 let WebView: React.ComponentType<any> | null = null;
@@ -55,8 +57,10 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
             </View>
           ))}
         </ScrollView>
+      ) : hasMetadata ? (
+        <WorkspaceFileBrowser sessionId={sessionId} />
       ) : (
-        <BlueprintEmpty hasMetadata={hasMetadata} />
+        <BlueprintEmpty />
       )}
     </View>
   );
@@ -112,10 +116,30 @@ function wrapHtml(html: string): string {
 </head><body>${html}</body></html>`;
 }
 
-function BlueprintEmpty({ hasMetadata }: { hasMetadata: boolean }) {
+function WorkspaceFileBrowser({ sessionId }: { sessionId: string }) {
+  const fb = useFileBrowser(sessionId);
+
+  useEffect(() => {
+    fb.browse();
+  }, []);
+
+  return (
+    <FileBrowser
+      entries={fb.entries}
+      currentPath={fb.currentPath}
+      onNavigate={fb.browse}
+      onFileSelect={fb.viewFile}
+      fileContent={fb.fileContent}
+      fileName={fb.fileName}
+      loading={fb.loading}
+      onBack={fb.navigateUp}
+    />
+  );
+}
+
+function BlueprintEmpty() {
   return (
     <View className="flex-1 items-center justify-center" style={{ backgroundColor: '#0a0a0a' }}>
-      {/* blueprint grid lines */}
       <View className="absolute inset-0 opacity-[0.04]">
         {Array.from({ length: 20 }).map((_, i) => (
           <View
@@ -136,9 +160,7 @@ function BlueprintEmpty({ hasMetadata }: { hasMetadata: boolean }) {
       <View className="items-center z-10">
         <Text className="text-[#1e293b] text-5xl font-light mb-2">workspace</Text>
         <Text className="text-[#27272a] text-sm text-center leading-5 px-8">
-          {hasMetadata
-            ? 'claude can render artifacts and previews here'
-            : 'connect to a session to begin'}
+          connect to a session to begin
         </Text>
       </View>
     </View>
