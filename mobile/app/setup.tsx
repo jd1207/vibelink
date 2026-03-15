@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -77,7 +77,11 @@ export default function SetupScreen() {
     }
   }, [bridgeUrl, authToken, storeSetUrl, storeSetToken]);
 
+  const scannedRef = useRef(false);
+
   const handleQrScanned = useCallback(({ data }: { data: string }) => {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
     setScanning(false);
     const parsed = parseVibelinkUri(data);
     if (parsed) {
@@ -86,6 +90,7 @@ export default function SetupScreen() {
       setAuthToken(parsed.token);
       handleConnect(fullUrl, parsed.token);
     } else {
+      scannedRef.current = false;
       setError('not a vibelink qr code. try the one from your setup script.');
     }
   }, [handleConnect]);
@@ -133,6 +138,7 @@ export default function SetupScreen() {
               const result = await requestPermission();
               if (!result.granted) return;
             }
+            scannedRef.current = false;
             setScanning(true);
           }}
           className="bg-[#3b82f6] p-4 rounded-xl items-center mb-6 active:opacity-80"

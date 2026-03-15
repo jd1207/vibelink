@@ -74,6 +74,14 @@ fi
 
 # background service (optional)
 if [[ "$AUTO_MODE" == true ]]; then
+  # start bridge directly in background (avoids sudo for systemd)
+  cd "$SCRIPT_DIR/bridge"
+  if [ -f .env ]; then
+    set -a; source .env; set +a
+  fi
+  nohup node dist/server.js > /tmp/vibelink-bridge.log 2>&1 &
+  echo "bridge started (pid $!, log at /tmp/vibelink-bridge.log)"
+  cd "$SCRIPT_DIR"
   install_svc="n"
 else
   read -p "install as background service? [y/N] " install_svc
