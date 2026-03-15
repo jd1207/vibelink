@@ -13,7 +13,13 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   bridgeUrl: '',
   authToken: '',
   isConnected: false,
-  setBridgeUrl: (url) => set({ bridgeUrl: url }),
+  setBridgeUrl: (url) => {
+    let normalized = url.trim().replace(/\/+$/, '');
+    if (normalized && !/^https?:\/\//.test(normalized)) {
+      normalized = `http://${normalized}`;
+    }
+    set({ bridgeUrl: normalized });
+  },
   setAuthToken: (token) => set({ authToken: token }),
   setConnected: (connected) => set({ isConnected: connected }),
 }));
