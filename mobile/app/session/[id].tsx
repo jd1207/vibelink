@@ -11,6 +11,7 @@ import { WorkspaceView } from '../../src/components/WorkspaceView';
 import { TabBar } from '../../src/components/TabBar';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
+import { formatToolName, formatToolInput } from '../../src/components/tool-format';
 
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
@@ -221,64 +222,4 @@ export default function SessionScreen() {
       </View>
     </>
   );
-}
-
-const TOOL_DESCRIPTIONS: Record<string, string> = {
-  Read: 'read file',
-  Write: 'write file',
-  Edit: 'edit file',
-  Bash: 'run command',
-  Glob: 'find files',
-  Grep: 'search code',
-  Agent: 'run agent',
-  WebFetch: 'fetch url',
-  WebSearch: 'web search',
-  NotebookEdit: 'edit notebook',
-};
-
-// primary param to show for each tool type
-const PRIMARY_PARAMS: Record<string, string[]> = {
-  Read: ['file_path'],
-  Write: ['file_path'],
-  Edit: ['file_path'],
-  Bash: ['command'],
-  Glob: ['pattern', 'path'],
-  Grep: ['pattern', 'path'],
-  Agent: ['prompt'],
-  WebFetch: ['url'],
-  WebSearch: ['query'],
-};
-
-function formatToolName(name: string): string {
-  // handle mcp__server__tool format
-  if (name.startsWith('mcp__')) {
-    const parts = name.split('__');
-    return parts.length >= 3 ? `${parts[1]}: ${parts.slice(2).join('_')}` : name;
-  }
-  const desc = TOOL_DESCRIPTIONS[name];
-  return desc ? `${name} — ${desc}` : name;
-}
-
-function formatToolInput(toolName: string, input: Record<string, unknown>): string {
-  const keys = PRIMARY_PARAMS[toolName];
-  if (keys) {
-    for (const key of keys) {
-      const val = input[key];
-      if (typeof val === 'string' && val.length > 0) {
-        const display = val.length > 100 ? val.substring(0, 97) + '...' : val;
-        return display;
-      }
-    }
-  }
-
-  // fallback: show first string param value
-  for (const val of Object.values(input)) {
-    if (typeof val === 'string' && val.length > 0) {
-      return val.length > 100 ? val.substring(0, 97) + '...' : val;
-    }
-  }
-
-  // last resort: compact JSON
-  const json = JSON.stringify(input);
-  return json.length > 100 ? json.substring(0, 97) + '...' : json;
 }
