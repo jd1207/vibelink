@@ -131,7 +131,9 @@ export default function SessionScreen() {
       const t = tab as { id?: string; label?: string };
       if (t.id && t.label) tabs.push({ key: t.id, label: t.label });
     }
-    for (const [windowId, stream] of Object.entries(streamTabs)) {
+    const sortedStreams = Object.entries(streamTabs)
+      .sort(([, a], [, b]) => (a.tabLabel || '').localeCompare(b.tabLabel || '', undefined, { numeric: true }));
+    for (const [windowId, stream] of sortedStreams) {
       tabs.push({ key: `stream-${windowId}`, label: stream.tabLabel || 'stream' });
     }
     tabs.push({ key: 'add-stream', label: '+' });
