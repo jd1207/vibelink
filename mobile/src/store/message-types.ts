@@ -61,6 +61,7 @@ export interface SessionMetadata {
   costUsd?: number;
   durationMs?: number;
   numTurns?: number;
+  sessionStartedAt?: number;
 }
 
 export interface WorkspaceCanvas {

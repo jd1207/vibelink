@@ -77,16 +77,35 @@ export function dashboardHtml(port: number): string {
   .view-tab:hover { color: #a1a1aa; }
   .view-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
 
-  /* terminal view */
-  .terminal-view { flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; display: none; background: #0a0a0a; }
-  .term-line { white-space: pre-wrap; word-break: break-all; }
-  .term-system { color: #60a5fa; }
-  .term-text { color: #e4e4e7; }
-  .term-assistant { color: #34d399; }
-  .term-user { color: #60a5fa; }
-  .term-tool { color: #fb923c; }
-  .term-tool-result { color: rgba(194, 129, 48, 0.5); }
-  .term-result { color: #71717a; }
+  /* workspace view */
+  .workspace-view { flex: 1; display: none; flex-direction: column; background: #0a0a0a; overflow: hidden; }
+  .workspace-meta { border-bottom: 1px solid #27272a; }
+  .workspace-meta-inner { padding: 12px 16px; }
+  .workspace-meta-inner.collapsed { padding: 8px 16px; }
+  .meta-row { display: flex; align-items: center; gap: 8px; }
+  .meta-model { background: #1e293b; color: #60a5fa; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+  .meta-cwd { color: #52525b; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta-toggle { color: #3b82f6; font-size: 10px; cursor: pointer; user-select: none; }
+  .meta-toggle:hover { opacity: 0.8; }
+  .meta-details { margin-top: 8px; }
+  .meta-label { color: #71717a; font-size: 10px; }
+  .context-bar-wrap { margin-bottom: 8px; }
+  .context-bar { height: 6px; background: #27272a; border-radius: 3px; overflow: hidden; }
+  .context-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .meta-stats { display: flex; gap: 16px; }
+  .meta-stat-val { color: #fafafa; font-size: 12px; font-weight: 600; }
+  .meta-stat-label { color: #52525b; font-size: 10px; }
+  .meta-mcp { margin-top: 8px; }
+  .meta-mcp-label { color: #71717a; font-size: 10px; margin-bottom: 4px; }
+  .meta-mcp-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .meta-mcp-tag { background: #18181b; color: #a1a1aa; font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+  .workspace-canvas { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .workspace-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .workspace-empty-title { color: #1e293b; font-size: 40px; font-weight: 300; margin-bottom: 8px; }
+  .workspace-empty-sub { color: #27272a; font-size: 13px; }
+  .workspace-frame-wrap { flex: 1; display: none; flex-direction: column; }
+  .workspace-title { padding: 6px 16px; border-bottom: 1px solid #27272a; color: #71717a; font-size: 10px; }
+  .workspace-iframe { flex: 1; border: none; background: #0a0a0a; width: 100%; }
 
   /* diagnostics */
   .diag-panel { display: none; padding: 12px 16px; background: #111; border-top: 1px solid #27272a; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; }
@@ -129,7 +148,19 @@ export function dashboardHtml(port: number): string {
       </div>
       <div class="chat-placeholder" id="placeholder">select a session from the sidebar</div>
       <div class="messages" id="messages" style="display:none"></div>
-      <div class="terminal-view" id="terminal-view"></div>
+      <div class="workspace-view" id="workspace-view">
+        <div class="workspace-meta" id="workspace-meta" style="display:none"></div>
+        <div class="workspace-canvas" id="workspace-canvas">
+          <div class="workspace-empty" id="workspace-empty">
+            <div class="workspace-empty-title">workspace</div>
+            <div class="workspace-empty-sub">claude can render artifacts and previews here</div>
+          </div>
+          <div class="workspace-frame-wrap" id="workspace-frame-wrap">
+            <div class="workspace-title" id="workspace-title" style="display:none"></div>
+            <iframe id="workspace-iframe" class="workspace-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+          </div>
+        </div>
+      </div>
       <div class="typing" id="typing">claude is thinking<span class="typing-dots"><span></span><span></span><span></span></span></div>
       <div class="approval" id="approval" style="display:none">
         <span class="approval-text" id="approval-text"></span>
@@ -163,6 +194,9 @@ let isStreaming = false;
 let streamBuffer = '';
 let currentView = 'chat';
 let sessionEvents = [];
+let sessionMeta = {};
+let workspaceCanvas = null;
+let metaCollapsed = false;
 
 function log(text, cls = '') {
   const el = document.getElementById('console');
@@ -221,7 +255,7 @@ async function endSession(id) {
 function showPlaceholder() {
   document.getElementById('placeholder').style.display = 'flex';
   document.getElementById('messages').style.display = 'none';
-  document.getElementById('terminal-view').style.display = 'none';
+  document.getElementById('workspace-view').style.display = 'none';
   document.getElementById('view-toggle').className = 'view-toggle';
   document.getElementById('input-area').style.display = 'none';
   document.getElementById('typing').style.display = 'none';
@@ -287,80 +321,121 @@ function switchView(view) {
 
   if (view === 'chat') {
     document.getElementById('messages').style.display = 'block';
-    document.getElementById('terminal-view').style.display = 'none';
+    document.getElementById('workspace-view').style.display = 'none';
     document.getElementById('input-area').style.display = 'flex';
     const msgs = document.getElementById('messages');
     msgs.scrollTop = msgs.scrollHeight;
   } else {
     document.getElementById('messages').style.display = 'none';
-    document.getElementById('terminal-view').style.display = 'block';
+    document.getElementById('workspace-view').style.display = 'flex';
     document.getElementById('input-area').style.display = 'none';
-    renderTerminal();
+    renderWorkspaceMeta();
+    renderWorkspaceCanvas();
   }
-}
-
-function renderTerminal() {
-  const el = document.getElementById('terminal-view');
-  el.innerHTML = '';
-  let textAccum = '';
-
-  function flushText() {
-    if (!textAccum) return;
-    const line = document.createElement('div');
-    line.className = 'term-line term-text';
-    line.textContent = textAccum;
-    el.appendChild(line);
-    textAccum = '';
-  }
-
-  for (const evt of sessionEvents) {
-    if (evt.type === 'system') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-system';
-      line.textContent = 'system: ' + evt.text;
-      el.appendChild(line);
-    } else if (evt.type === 'text_delta') {
-      textAccum += evt.text;
-    } else if (evt.type === 'assistant') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-assistant';
-      line.textContent = evt.text;
-      el.appendChild(line);
-    } else if (evt.type === 'user') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-user';
-      line.textContent = 'you: ' + evt.text;
-      el.appendChild(line);
-    } else if (evt.type === 'tool_use') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-tool';
-      line.textContent = '> ' + evt.text;
-      el.appendChild(line);
-    } else if (evt.type === 'tool_result') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-tool-result';
-      line.textContent = evt.text;
-      el.appendChild(line);
-    } else if (evt.type === 'result') {
-      flushText();
-      const line = document.createElement('div');
-      line.className = 'term-line term-result';
-      line.textContent = evt.text;
-      el.appendChild(line);
-    }
-  }
-  flushText();
-  el.scrollTop = el.scrollHeight;
 }
 
 function appendTerminalEvent(evt) {
   sessionEvents.push(evt);
-  if (currentView === 'terminal') renderTerminal();
+}
+
+function formatTokens(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function toggleMeta() {
+  metaCollapsed = !metaCollapsed;
+  renderWorkspaceMeta();
+}
+
+function renderWorkspaceMeta() {
+  var el = document.getElementById('workspace-meta');
+  if (!sessionMeta.model && !sessionMeta.cwd) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+
+  var totalTokens = (sessionMeta.inputTokens || 0) + (sessionMeta.outputTokens || 0);
+  var contextMax = (sessionMeta.model && sessionMeta.model.includes('opus') && sessionMeta.model.includes('1m')) ? 1000000 : 200000;
+  var contextPercent = totalTokens > 0 ? Math.min((totalTokens / contextMax) * 100, 100) : 0;
+  var barColor = contextPercent > 80 ? '#ef4444' : contextPercent > 50 ? '#f59e0b' : '#3b82f6';
+
+  if (metaCollapsed) {
+    var h = '<div class="workspace-meta-inner collapsed"><div class="meta-row">';
+    if (sessionMeta.model) h += '<span class="meta-model">' + escapeHtml(sessionMeta.model) + '</span>';
+    if (totalTokens > 0) h += '<span style="color:#52525b;font-size:10px">' + formatTokens(totalTokens) + '</span>';
+    if (sessionMeta.costUsd != null) h += '<span style="color:#52525b;font-size:10px">$' + sessionMeta.costUsd.toFixed(3) + '</span>';
+    h += '<span style="flex:1"></span><span class="meta-toggle" onclick="toggleMeta()">expand</span>';
+    h += '</div></div>';
+    el.innerHTML = h;
+    return;
+  }
+
+  var html = '<div class="workspace-meta-inner"><div class="meta-row">';
+  if (sessionMeta.model) html += '<span class="meta-model">' + escapeHtml(sessionMeta.model) + '</span>';
+  if (sessionMeta.cwd) {
+    var shortCwd = sessionMeta.cwd.split('/').slice(-2).join('/');
+    html += '<span class="meta-cwd">' + escapeHtml(shortCwd) + '</span>';
+  }
+  html += '<span class="meta-toggle" onclick="toggleMeta()">collapse</span></div>';
+  html += '<div class="meta-details">';
+
+  if (totalTokens > 0) {
+    html += '<div class="context-bar-wrap">';
+    html += '<div class="meta-row" style="justify-content:space-between;margin-bottom:4px">';
+    html += '<span class="meta-label">context window</span>';
+    html += '<span class="meta-label">' + formatTokens(totalTokens) + ' / ' + formatTokens(contextMax) + '</span>';
+    html += '</div>';
+    html += '<div class="context-bar"><div class="context-fill" style="width:' + contextPercent + '%;background:' + barColor + '"></div></div>';
+    html += '</div>';
+  }
+
+  html += '<div class="meta-stats">';
+  if (sessionMeta.numTurns != null) html += '<div><div class="meta-stat-val">' + sessionMeta.numTurns + '</div><div class="meta-stat-label">turns</div></div>';
+  if (sessionMeta.costUsd != null) html += '<div><div class="meta-stat-val">$' + sessionMeta.costUsd.toFixed(3) + '</div><div class="meta-stat-label">cost</div></div>';
+  if (sessionMeta.cacheReadTokens > 0) html += '<div><div class="meta-stat-val">' + formatTokens(sessionMeta.cacheReadTokens) + '</div><div class="meta-stat-label">cache read</div></div>';
+  html += '</div>';
+
+  if (sessionMeta.mcpServers && sessionMeta.mcpServers.length > 0) {
+    html += '<div class="meta-mcp"><div class="meta-mcp-label">mcp servers</div><div class="meta-mcp-list">';
+    for (var i = 0; i < sessionMeta.mcpServers.length; i++) {
+      html += '<span class="meta-mcp-tag">' + escapeHtml(sessionMeta.mcpServers[i]) + '</span>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function renderWorkspaceCanvas() {
+  var empty = document.getElementById('workspace-empty');
+  var wrap = document.getElementById('workspace-frame-wrap');
+  var iframe = document.getElementById('workspace-iframe');
+  var titleEl = document.getElementById('workspace-title');
+
+  if (!workspaceCanvas) {
+    empty.style.display = 'flex';
+    wrap.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  wrap.style.display = 'flex';
+
+  if (workspaceCanvas.title) {
+    titleEl.style.display = 'block';
+    titleEl.textContent = workspaceCanvas.title;
+  } else {
+    titleEl.style.display = 'none';
+  }
+
+  if (workspaceCanvas.mode === 'html') {
+    iframe.srcdoc = workspaceCanvas.html;
+    iframe.removeAttribute('src');
+  } else {
+    iframe.removeAttribute('srcdoc');
+    iframe.src = workspaceCanvas.url;
+  }
 }
 
 // websocket
@@ -368,8 +443,10 @@ function selectSession(id) {
   if (id === activeSessionId) return;
   activeSessionId = id;
   sessionEvents = [];
+  sessionMeta = {};
+  workspaceCanvas = null;
+  metaCollapsed = false;
   document.getElementById('messages').innerHTML = '';
-  document.getElementById('terminal-view').innerHTML = '';
   document.getElementById('view-toggle').className = 'view-toggle visible';
   showChat();
   if (currentView === 'terminal') switchView('terminal');
@@ -410,6 +487,15 @@ function handleEvent(data) {
 
     if (evt.type === 'system') {
       appendTerminalEvent({ type: 'system', text: evt.message || JSON.stringify(evt) });
+      if (evt.subtype === 'init') {
+        sessionMeta.model = evt.model;
+        sessionMeta.cwd = evt.cwd;
+        sessionMeta.sessionId = evt.session_id;
+        sessionMeta.mcpServers = Array.isArray(evt.mcp_servers)
+          ? evt.mcp_servers.map(function(s) { return typeof s === 'string' ? s : (s.name || String(s)); })
+          : [];
+        renderWorkspaceMeta();
+      }
     }
 
     if (evt.type === 'stream_event') {
@@ -467,6 +553,15 @@ function handleEvent(data) {
       document.getElementById('typing').style.display = 'none';
       const duration = evt.duration_ms ? ('done in ' + evt.duration_ms + 'ms') : 'done';
       appendTerminalEvent({ type: 'result', text: duration });
+      if (evt.usage) {
+        sessionMeta.inputTokens = evt.usage.input_tokens || 0;
+        sessionMeta.outputTokens = evt.usage.output_tokens || 0;
+        sessionMeta.cacheReadTokens = evt.usage.cache_read_input_tokens || 0;
+      }
+      if (evt.cost_usd != null) sessionMeta.costUsd = evt.cost_usd;
+      if (evt.duration_ms != null) sessionMeta.durationMs = evt.duration_ms;
+      if (evt.num_turns != null) sessionMeta.numTurns = evt.num_turns;
+      renderWorkspaceMeta();
     }
   }
 
@@ -477,6 +572,22 @@ function handleEvent(data) {
     document.getElementById('approval').style.display = 'flex';
     document.getElementById('approval').dataset.requestId = data.requestId || '';
     log('permission request: ' + tool, 'event');
+  }
+
+  if (data.type === 'workspace_html') {
+    workspaceCanvas = { mode: 'html', html: data.html, title: data.title };
+    renderWorkspaceCanvas();
+    log('workspace: html rendered' + (data.title ? ' (' + data.title + ')' : ''), 'event');
+  }
+  if (data.type === 'workspace_url') {
+    workspaceCanvas = { mode: 'url', url: data.url, title: data.title };
+    renderWorkspaceCanvas();
+    log('workspace: url ' + data.url, 'event');
+  }
+  if (data.type === 'workspace_clear') {
+    workspaceCanvas = null;
+    renderWorkspaceCanvas();
+    log('workspace: cleared', 'event');
   }
 }
 

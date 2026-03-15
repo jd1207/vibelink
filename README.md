@@ -92,12 +92,24 @@ account. This creates a private encrypted connection between them.
 
 > **If you are Claude and a user asked you to set up VibeLink, follow this.**
 
+### Step 0: Ask the user two questions
+
+Before doing anything, ask:
+
+1. **"Are you on Android or iOS?"**
+   - **Android** — proceed with APK build and install
+   - **iOS** — TestFlight distribution is not built yet. Tell the user: "iOS support requires a Mac with Xcode to build locally. TestFlight distribution is on the roadmap but not available yet. If you have a Mac, I can guide you through building it with `npx expo run:ios --device`."
+
+2. **"Do you want to use the dev client (hot-reload for development) or a release APK (daily use)?"**
+   - **Release APK** — user gets **2 QR codes** (download APK + connect to bridge)
+   - **Dev client** — user gets **3 QR codes** (download APK + connect to Metro dev server + connect to bridge)
+
 ### What to tell the user upfront
 
 "Here's the deal — I'm going to do all the heavy lifting on your computer.
-You just need to do two things on your phone: download an app and scan a
-QR code. Plus a one-time Tailscale install if you don't already have it.
-That's it. Takes about 10 minutes, most of which is me building stuff."
+You just need to scan a couple QR codes with your phone. Plus a one-time
+Tailscale install if you don't already have it. Takes about 10 minutes,
+most of which is me building stuff."
 
 ### What YOU (Claude) do — silently, no user action needed
 
@@ -127,43 +139,86 @@ git clone https://github.com/jd1207/vibelink && cd vibelink
 Builds everything, registers MCP + permission hook, generates auth token,
 starts the bridge. Takes 2-3 minutes.
 
-**3. Get connection info.**
+**3. Build the APK.**
+
+For **release** (daily use):
+```bash
+cd mobile && npm install && npx expo prebuild --platform android --clean
+export JAVA_HOME=/path/to/jdk-17 && export ANDROID_HOME=/path/to/android-sdk
+cd android && ./gradlew assembleRelease --no-daemon
+```
+
+For **dev client** (hot-reload development):
+```bash
+cd mobile && npm install && npx expo prebuild --platform android --clean
+export JAVA_HOME=/path/to/jdk-17 && export ANDROID_HOME=/path/to/android-sdk
+cd android && ./gradlew assembleDebug --no-daemon
+```
+
+**4. Start the bridge** (if not already running).
+
+```bash
+./vibelink start
+# or: cd bridge && node dist/server.js &
+```
+
+The bridge serves the APK at `http://<tailscale-ip>:3400/apk`
+(auto-detects release vs debug APK).
+
+**5. Get connection info.**
 
 ```bash
 tailscale ip -4                                    # bridge IP
 grep AUTH_TOKEN bridge/.env | cut -d= -f2          # auth token
 ```
 
-### What the USER does — only these things
+### What the USER does — QR codes
 
 **Tailscale on phone** (skip if they already have it):
 Tell them to download Tailscale from the App Store / Play Store and sign in
-with the same account as their computer. That's it — one-time setup.
+with the same account as their computer. One-time setup.
 
-**QR code 1 — download the app:**
-Generate a QR code linking to the APK download. The user scans it with
-their phone camera to open the download page:
+Then generate and display the QR codes. Label each one clearly.
+
+**QR code 1 — download the app (Android only):**
+The bridge serves the built APK directly. Generate a QR code for it:
 ```bash
-node scripts/show-qr.js https://github.com/jd1207/vibelink/releases/latest
+node scripts/show-qr.js http://<tailscale-ip>:3400/apk
 ```
-Tell them: "Scan this with your phone camera to download the app."
+Tell them: "Scan this with your phone camera to download VibeLink.
+Install the APK — you may need to allow 'install from unknown sources'."
 
-If no prebuilt APK exists on GitHub Releases, build it and serve it:
+**QR code 2 — connect to Metro dev server (dev client only, skip for release):**
+Only needed if the user chose dev client mode. Start the dev server first:
 ```bash
-cd mobile && npm install && npx expo prebuild --platform android --clean
-cd android && ./gradlew assembleRelease && cd ..
-python3 -m http.server 9090 -d android/app/build/outputs/apk/release
-# then generate QR for the local download:
-node scripts/show-qr.js http://<tailscale-ip>:9090/app-release.apk
+cd mobile && npx expo start --dev-client --lan
 ```
+Then generate the QR:
+```bash
+node scripts/show-qr.js http://<tailscale-ip>:<metro-port>
+```
+Tell them: "Open the app. It will show the dev client screen.
+Scan this QR to connect to the development server."
+The Metro port is shown in the `npx expo start` output (usually 8081).
 
-**QR code 2 — connect to the bridge:**
-Once the app is installed, generate the connection QR code:
+**QR code 3 (or 2 for release) — connect to the bridge:**
+This QR is the same regardless of platform or dev/release mode:
 ```bash
 node scripts/show-qr.js <tailscale-ip> 3400 <auth-token>
 ```
-Tell them: "Open VibeLink, tap 'scan qr code', point at the screen."
-If QR doesn't render, give them the IP and token to type manually.
+Tell them: "You should see the setup screen now. Tap 'scan qr code'
+and point at the screen."
+If QR scanning doesn't work, give them the IP and token to type manually.
+
+### Summary of QR codes
+
+| Mode | QR 1 | QR 2 | QR 3 |
+|:--|:--|:--|:--|
+| **Release APK** | Download APK | Connect to bridge | — |
+| **Dev client** | Download APK | Connect to Metro | Connect to bridge |
+
+The bridge connection QR is always the last one scanned, inside the app's
+setup screen. It's the same QR regardless of release or dev mode.
 
 ### Troubleshooting
 
@@ -171,6 +226,7 @@ If QR doesn't render, give them the IP and token to type manually.
 - `curl http://localhost:3400/health` — bridge returning `{"status":"ok"}`?
 - `tailscale ip -4` — correct IP?
 - Phone can reach `http://<tailscale-ip>:3400/dashboard`?
+- APK download not working? Try `curl http://localhost:3400/apk -o /dev/null -w "%{http_code}"` — should return 200
 
 ## Daily Use
 

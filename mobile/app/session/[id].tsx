@@ -183,25 +183,29 @@ export default function SessionScreen() {
         </View>
 
         {permissionRequest ? (
-          <View className="flex-row items-center gap-2 px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
-            <View className="flex-1">
-              <Text className="text-[#fbbf24] text-xs font-semibold">{permissionRequest.toolName}</Text>
-              <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
-                {JSON.stringify(permissionRequest.toolInput).substring(0, 120)}
-              </Text>
+          <View className="px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
+            <View className="flex-row items-center gap-2">
+              <View className="flex-1">
+                <Text className="text-[#fbbf24] text-xs font-semibold">
+                  {formatToolName(permissionRequest.toolName)}
+                </Text>
+                <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
+                  {formatToolInput(permissionRequest.toolName, permissionRequest.toolInput)}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => handlePermissionResponse('allow')}
+                className="bg-[#16a34a] rounded-lg px-4 py-2 active:opacity-80"
+              >
+                <Text className="text-white font-semibold text-sm">approve</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handlePermissionResponse('deny')}
+                className="bg-[#dc2626] rounded-lg px-4 py-2 active:opacity-80"
+              >
+                <Text className="text-white font-semibold text-sm">deny</Text>
+              </Pressable>
             </View>
-            <Pressable
-              onPress={() => handlePermissionResponse('allow')}
-              className="bg-[#16a34a] rounded-lg px-4 py-2 active:opacity-80"
-            >
-              <Text className="text-white font-semibold text-sm">approve</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handlePermissionResponse('deny')}
-              className="bg-[#dc2626] rounded-lg px-4 py-2 active:opacity-80"
-            >
-              <Text className="text-white font-semibold text-sm">deny</Text>
-            </Pressable>
           </View>
         ) : null}
 
@@ -209,4 +213,64 @@ export default function SessionScreen() {
       </View>
     </>
   );
+}
+
+const TOOL_DESCRIPTIONS: Record<string, string> = {
+  Read: 'read file',
+  Write: 'write file',
+  Edit: 'edit file',
+  Bash: 'run command',
+  Glob: 'find files',
+  Grep: 'search code',
+  Agent: 'run agent',
+  WebFetch: 'fetch url',
+  WebSearch: 'web search',
+  NotebookEdit: 'edit notebook',
+};
+
+// primary param to show for each tool type
+const PRIMARY_PARAMS: Record<string, string[]> = {
+  Read: ['file_path'],
+  Write: ['file_path'],
+  Edit: ['file_path'],
+  Bash: ['command'],
+  Glob: ['pattern', 'path'],
+  Grep: ['pattern', 'path'],
+  Agent: ['prompt'],
+  WebFetch: ['url'],
+  WebSearch: ['query'],
+};
+
+function formatToolName(name: string): string {
+  // handle mcp__server__tool format
+  if (name.startsWith('mcp__')) {
+    const parts = name.split('__');
+    return parts.length >= 3 ? `${parts[1]}: ${parts.slice(2).join('_')}` : name;
+  }
+  const desc = TOOL_DESCRIPTIONS[name];
+  return desc ? `${name} — ${desc}` : name;
+}
+
+function formatToolInput(toolName: string, input: Record<string, unknown>): string {
+  const keys = PRIMARY_PARAMS[toolName];
+  if (keys) {
+    for (const key of keys) {
+      const val = input[key];
+      if (typeof val === 'string' && val.length > 0) {
+        const display = val.length > 100 ? val.substring(0, 97) + '...' : val;
+        return display;
+      }
+    }
+  }
+
+  // fallback: show first string param value
+  for (const val of Object.values(input)) {
+    if (typeof val === 'string' && val.length > 0) {
+      return val.length > 100 ? val.substring(0, 97) + '...' : val;
+    }
+  }
+
+  // last resort: compact JSON
+  const json = JSON.stringify(input);
+  return json.length > 100 ? json.substring(0, 97) + '...' : json;
 }
