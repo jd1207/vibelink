@@ -170,13 +170,16 @@ If QR doesn't render, give them the IP and token to type manually.
 
 ## Daily Use
 
+From the vibelink directory:
+
 ```bash
-vibelink start      # start the bridge as a background service
-vibelink stop       # graceful shutdown
-vibelink status     # check running sessions and connected clients
+./vibelink start      # start the bridge in the background
+./vibelink stop       # graceful shutdown
+./vibelink status     # check if running + connected clients
 ```
 
-Once the bridge is running, open the app on your phone. No terminal needed for daily use.
+Works with or without systemd — falls back to running node directly.
+Once the bridge is running, open the app on your phone.
 
 ## Building from Source
 
