@@ -1,7 +1,6 @@
-import { readdir, readFile, stat } from "fs/promises";
-import { join, basename } from "path";
+import { readdir, readFile, stat, open } from "fs/promises";
+import { join } from "path";
 import { homedir } from "os";
-import { execSync } from "child_process";
 
 export interface ClaudeSession {
   sessionId: string;
@@ -33,7 +32,6 @@ function decodeDirName(name: string): string {
   return name.replace(/-/g, "/");
 }
 
-// check if a PID is still running
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -43,7 +41,6 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-// load all active PID → sessionId mappings from ~/.claude/sessions/
 async function loadActivePids(): Promise<Map<string, PidEntry>> {
   const sessionsDir = join(homedir(), ".claude", "sessions");
   const map = new Map<string, PidEntry>();
@@ -69,30 +66,79 @@ async function loadActivePids(): Promise<Map<string, PidEntry>> {
   return map;
 }
 
-// extract metadata from the last N lines of a JSONL file (read from the end)
-async function parseSessionJsonl(
+// read the head (first ~8KB) and tail (last ~32KB) of a file
+// head gives us metadata (cwd, model, gitBranch from first entries)
+// tail gives us recent messages and last activity timestamp
+async function readHeadAndTail(
   filePath: string,
-): Promise<{
+  headBytes: number = 8192,
+  tailBytes: number = 32768,
+): Promise<string> {
+  const fileStat = await stat(filePath);
+  const size = fileStat.size;
+
+  if (size <= headBytes + tailBytes) {
+    return readFile(filePath, "utf-8");
+  }
+
+  const fh = await open(filePath, "r");
+  try {
+    const headBuf = Buffer.alloc(headBytes);
+    const tailBuf = Buffer.alloc(tailBytes);
+
+    await fh.read(headBuf, 0, headBytes, 0);
+    await fh.read(tailBuf, 0, tailBytes, size - tailBytes);
+
+    const head = headBuf.toString("utf-8");
+    const tail = tailBuf.toString("utf-8");
+
+    // trim partial lines at boundaries
+    const headEnd = head.lastIndexOf("\n");
+    const tailStart = tail.indexOf("\n");
+
+    return (
+      (headEnd >= 0 ? head.slice(0, headEnd) : head) +
+      "\n" +
+      (tailStart >= 0 ? tail.slice(tailStart + 1) : tail)
+    );
+  } finally {
+    await fh.close();
+  }
+}
+
+function parseLine(line: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return null;
+  }
+}
+
+interface ParsedSession {
   lastActivity: string;
   model: string | null;
   gitBranch: string | null;
   projectPath: string | null;
   recentMessages: RecentMessage[];
-}> {
+}
+
+async function parseSessionJsonl(filePath: string): Promise<ParsedSession> {
+  const empty: ParsedSession = {
+    lastActivity: "",
+    model: null,
+    gitBranch: null,
+    projectPath: null,
+    recentMessages: [],
+  };
+
   let content: string;
   try {
-    content = await readFile(filePath, "utf-8");
+    content = await readHeadAndTail(filePath);
   } catch {
-    return {
-      lastActivity: "",
-      model: null,
-      gitBranch: null,
-      projectPath: null,
-      recentMessages: [],
-    };
+    return empty;
   }
 
-  const lines = content.trim().split("\n");
+  const lines = content.split("\n");
 
   let lastActivity = "";
   let model: string | null = null;
@@ -100,26 +146,20 @@ async function parseSessionJsonl(
   let projectPath: string | null = null;
   const messages: RecentMessage[] = [];
 
-  // scan all lines for metadata, collect user/assistant messages
   for (const line of lines) {
-    let entry: Record<string, unknown>;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
+    if (!line) continue;
+    const entry = parseLine(line);
+    if (!entry) continue;
 
     const timestamp = entry.timestamp as string | undefined;
     if (timestamp && timestamp > lastActivity) {
       lastActivity = timestamp;
     }
 
-    // extract project path from cwd field
     if (!projectPath && entry.cwd) {
       projectPath = entry.cwd as string;
     }
 
-    // extract git branch
     if (entry.gitBranch) {
       gitBranch = entry.gitBranch as string;
     }
@@ -131,10 +171,8 @@ async function parseSessionJsonl(
       if (!model && msg.model) {
         model = msg.model as string;
       }
-
-      // extract text content from assistant message
       const contentArr = msg.content as Array<{ type: string; text?: string }> | undefined;
-      if (contentArr) {
+      if (Array.isArray(contentArr)) {
         const textBlock = contentArr.find((b) => b.type === "text" && b.text);
         if (textBlock?.text) {
           messages.push({
@@ -148,15 +186,15 @@ async function parseSessionJsonl(
 
     if (type === "user" && entry.message) {
       const msg = entry.message as Record<string, unknown>;
-      const contentArr = msg.content as
+      const contentField = msg.content as
         | string
         | Array<{ type: string; text?: string }>
         | undefined;
       let text = "";
-      if (typeof contentArr === "string") {
-        text = contentArr;
-      } else if (Array.isArray(contentArr)) {
-        const textBlock = contentArr.find((b) => b.type === "text" && b.text);
+      if (typeof contentField === "string") {
+        text = contentField;
+      } else if (Array.isArray(contentField)) {
+        const textBlock = contentField.find((b) => b.type === "text" && b.text);
         text = textBlock?.text ?? "";
       }
       if (text) {
@@ -169,15 +207,17 @@ async function parseSessionJsonl(
     }
   }
 
-  // keep last 5 messages
-  const recentMessages = messages.slice(-5);
-
-  return { lastActivity, model, gitBranch, projectPath, recentMessages };
+  return {
+    lastActivity,
+    model,
+    gitBranch,
+    projectPath,
+    recentMessages: messages.slice(-5),
+  };
 }
 
 export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
-  const claudeDir = join(homedir(), ".claude");
-  const projectsDir = join(claudeDir, "projects");
+  const projectsDir = join(homedir(), ".claude", "projects");
 
   const activePids = await loadActivePids();
   const aliveSessionIds = new Set<string>();
@@ -199,7 +239,6 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   for (const dirName of projectDirs) {
     const dirPath = join(projectsDir, dirName);
 
-    // skip non-directories
     try {
       const s = await stat(dirPath);
       if (!s.isDirectory()) continue;
@@ -207,10 +246,8 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
       continue;
     }
 
-    // decode the project path from directory name
     const projectPath = decodeDirName(dirName);
 
-    // find all JSONL session files in this directory
     let files: string[];
     try {
       files = await readdir(dirPath);
@@ -227,13 +264,13 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
       const parsed = await parseSessionJsonl(filePath);
       if (!parsed.lastActivity) continue;
 
-      const resolvedProjectPath = parsed.projectPath ?? projectPath;
+      const resolvedPath = parsed.projectPath ?? projectPath;
       const projectName =
-        resolvedProjectPath.split("/").filter(Boolean).pop() ?? resolvedProjectPath;
+        resolvedPath.split("/").filter(Boolean).pop() ?? resolvedPath;
 
       sessions.push({
         sessionId,
-        projectPath: resolvedProjectPath,
+        projectPath: resolvedPath,
         projectName,
         lastActivity: parsed.lastActivity,
         model: parsed.model,
@@ -244,7 +281,6 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
     }
   }
 
-  // sort by last activity, newest first
   sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   return sessions;
