@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import net from "net";
+import { randomUUID } from "crypto";
 import type { IpcMessage } from "./types.js";
 
 const BACKOFF_STEPS = [500, 1000, 2000, 5000];
@@ -13,6 +14,7 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
   private buffer = "";
   private retryCount = 0;
   private closed = false;
+  private pendingRequests = new Map<string, { resolve: (data: unknown) => void; timer: NodeJS.Timeout }>();
 
   constructor(
     private readonly socketPath: string,
@@ -51,6 +53,15 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
         if (!trimmed) continue;
         try {
           const msg = JSON.parse(trimmed) as IpcMessage;
+          if (msg.type === "response" && msg.requestId) {
+            const pending = this.pendingRequests.get(msg.requestId as string);
+            if (pending) {
+              clearTimeout(pending.timer);
+              this.pendingRequests.delete(msg.requestId as string);
+              pending.resolve(msg.data);
+              return;
+            }
+          }
           this.emit("message", msg);
         } catch {
           // skip malformed lines
@@ -81,6 +92,18 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
   send(message: unknown): void {
     if (!this.isConnected) return;
     this.socket!.write(JSON.stringify(message) + "\n");
+  }
+
+  async request(message: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
+    const requestId = randomUUID();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error("IPC request timeout"));
+      }, timeoutMs);
+      this.pendingRequests.set(requestId, { resolve, timer });
+      this.send({ ...message, requestId });
+    });
   }
 
   close(): void {
