@@ -264,6 +264,7 @@ export default function SessionScreen() {
           visible={pickerOpen}
           onClose={() => setPickerOpen(sessionId, false)}
           onSelect={(w) => {
+            useStreamStore.getState().addStreamTab(sessionId, w.id, w.title, 'streaming');
             sendRaw({ type: 'start_stream', windowId: w.id });
             setActiveTab(`stream-${w.id}`);
           }}
