@@ -4,7 +4,7 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
-import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS } from '../../src/store/messages';
+import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS, EMPTY_PERMISSION_QUEUE } from '../../src/store/messages';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
 import { WorkspaceView } from '../../src/components/WorkspaceView';
@@ -28,7 +28,7 @@ export default function SessionScreen() {
   const streamedMessages = useStreaming(sessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
-  const permissionQueue = useMessageStore((s) => s.permissionQueue[sessionId] ?? []);
+  const permissionQueue = useMessageStore((s) => s.permissionQueue[sessionId] ?? EMPTY_PERMISSION_QUEUE);
   const permissionRequest = permissionQueue[0] ?? null;
 
   // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android

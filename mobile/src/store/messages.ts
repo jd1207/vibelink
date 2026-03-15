@@ -34,8 +34,9 @@ interface MessageState {
 const EMPTY_EVENTS: ClaudeEvent[] = [];
 const EMPTY_COMPONENTS: Record<string, unknown> = {};
 const EMPTY_TABS: unknown[] = [];
+const EMPTY_PERMISSION_QUEUE: { requestId: string; toolName: string; toolInput: Record<string, unknown> }[] = [];
 
-export { EMPTY_EVENTS, EMPTY_COMPONENTS, EMPTY_TABS };
+export { EMPTY_EVENTS, EMPTY_COMPONENTS, EMPTY_TABS, EMPTY_PERMISSION_QUEUE };
 
 export const useMessageStore = create<MessageState>((set) => ({
   events: {},
