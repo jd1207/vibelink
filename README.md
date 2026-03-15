@@ -346,44 +346,43 @@ See package READMEs for internals:
 
 ### Built
 
-- [x] **Bridge Server** -- Node.js server that spawns Claude CLI subprocesses, manages sessions, streams NDJSON over WebSocket
-- [x] **MCP Server** -- registered with Claude Code, provides render_ui, create_tab, update_ui, request_input, send_notification tools
-- [x] **Mobile App** -- React Native (Expo) with session list, project picker, chat with streaming responses
-- [x] **Chat View** -- messages rendered as markdown with code blocks, tool activity indicators, streaming text
-- [x] **Workspace Tab** -- persistent canvas with session metadata, HTML rendering via MCP, and localhost preview
+- [x] **Bridge Server** -- spawns Claude CLI subprocesses, manages sessions, streams NDJSON over WebSocket
+- [x] **MCP Server** -- render_ui, create_tab, update_ui, request_input, send_notification, render_html, set_preview_url
+- [x] **Mobile App** -- session list, project picker, chat with streaming responses, dark theme
+- [x] **Chat View** -- markdown with code blocks, tool activity with friendly names and smart params, streaming text
+- [x] **Workspace Tab** -- session metadata panel, HTML artifact rendering, localhost preview with auto URL rewriting
+- [x] **Screen Mirroring** -- capture any desktop window, MJPEG streaming, up to 3 concurrent streams, tab rename/close
+- [x] **Permission Control** -- PreToolUse hook gates every tool call, FIFO queue for rapid approvals, skip toggle
 - [x] **Multi-Session** -- run multiple Claude sessions in different project directories simultaneously
-- [x] **Project Discovery** -- auto-scans your filesystem for git repos and CLAUDE.md projects
-- [x] **Dashboard** -- localhost web UI for managing sessions and debugging (http://localhost:3400/dashboard)
-- [x] **Auth** -- token-based authentication for all connections
-- [x] **Permission Control** -- PreToolUse hook gates every tool call, toggle to skip or approve individually
+- [x] **Dashboard** -- web UI for managing sessions and debugging (http://localhost:3400/dashboard)
+- [x] **QR Code Setup** -- scan to connect, vibelink:// deep links, cross-platform setup scripts
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
-- [x] **QR Code Setup** -- scan a QR code from the setup script to connect instantly
-- [x] **Deep Link Support** -- vibelink://connect URIs auto-fill connection info
-- [x] **Cross-Platform Setup** -- setup.sh (Mac/Linux) and setup.ps1 (Windows/WSL2)
-- [x] **Disconnect/Reconfigure** -- change bridge connection without reinstalling
 
-### In Progress
+### Now (Sprint 4)
 
-- [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed in workspace and chat
-- [ ] **Setup script testing** -- end-to-end validation on fresh Mac and Windows installs
+- [ ] **Session browser** -- see all active Claude Code sessions on your system, tap to view recent messages, resume or start new sessions in any project folder
+- [ ] **Workspace viewport toggle** -- switch between mobile and desktop width when previewing websites
 
-### Planned (Phase 2/3)
+### Next (Sprint 5-6)
 
-- [ ] **Settings screen** -- quality config, disconnect, app preferences, and user-configurable stream resolution
-- [ ] **Voice control mode** -- volume buttons to record and send text queries (Phase 4)
-- [ ] **WebRTC transport upgrade** -- lower latency interactive streaming with better codec support (Phase 5)
-- [ ] **App Store / Play Store** -- publish to stores for one-tap install (no sideloading)
-- [ ] **Auto-discovery** -- find the Bridge automatically via mDNS or Tailscale MagicDNS (no manual IP entry)
+- [ ] **Onboarding flow** -- Apple-style first-run experience: connect to bridge, customize theme, skippable intro
+- [ ] **Theme customization** -- match Claude Code colors, user-configurable color scheme
+- [ ] **File browser in workspace** -- browse project directory, view files, view CLAUDE.md
+- [ ] **File transfer** -- send files/photos to chat, download files from chat
+- [ ] **CLI command passthrough** -- /mcp, /context, /plugin and their sub-workflows work from the app
+- [ ] **Workspace overhaul** -- richer canvas with tabbed views, better layout, more MCP component types
+
+### Later
+
+- [ ] **Interactive streaming** -- click, scroll, and type into mirrored windows (input forwarding via xdotool)
+- [ ] **Unity playtesting** -- mirror Unity Game View for remote playtesting on phone
+- [ ] **WebRTC transport** -- lower latency streaming with better codec support
 - [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
-- [ ] **Camera/file uploads** -- send photos and files to Claude
 - [ ] **Push notifications** -- get notified when Claude finishes a long task
-- [ ] **GitHub integration** -- clone repos directly from the app
-- [ ] **iOS build guide** -- contributor documentation for building on Mac
+- [ ] **Camera/file uploads** -- send photos and files to Claude
+- [ ] **App Store / Play Store** -- publish for one-tap install
 - [ ] **npx vibelink-setup** -- cross-platform setup wizard, no git clone needed
-
-### Built in Phase 3
-
-- [x] **Screen mirroring** -- MJPEG/WebSocket streaming with window picker, 720p monitoring, and stream tabs in workspace
+- [ ] **iOS build guide** -- contributor documentation for building on Mac
 
 ## Contributing
 
