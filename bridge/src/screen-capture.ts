@@ -14,7 +14,21 @@ function findXauthority(): string {
   } catch {
     // dir not readable
   }
-  return `${process.env.HOME}/.Xauthority`;
+  return `${process.env.HOME || "/home/deck"}/.Xauthority`;
+}
+
+// minimal env for x11 subprocesses (ffmpeg, xdotool, xprop)
+// full process.env breaks ffmpeg x11grab — plasma/kde session vars interfere
+function x11Env(): Record<string, string> {
+  return {
+    PATH: process.env.PATH || "/usr/bin:/bin",
+    DISPLAY: ":0",
+    XAUTHORITY: findXauthority(),
+    HOME: process.env.HOME || "/home/deck",
+    USER: process.env.USER || "deck",
+    LOGNAME: process.env.LOGNAME || "deck",
+    LANG: process.env.LANG || "en_US.UTF-8",
+  };
 }
 
 // --- types ---
@@ -74,6 +88,7 @@ export function listWindows(): WindowInfo[] {
     const raw = execSync("xdotool search --onlyvisible --name ''", {
       encoding: "utf-8",
       timeout: 5000,
+      env: x11Env(),
     });
     ids = raw.trim().split("\n").filter(Boolean);
   } catch {
@@ -89,6 +104,7 @@ export function listWindows(): WindowInfo[] {
       const title = execSync(`xdotool getwindowname ${decId}`, {
         encoding: "utf-8",
         timeout: 2000,
+        env: x11Env(),
       }).trim();
 
       // skip desktop, panels, and unnamed windows
@@ -97,6 +113,7 @@ export function listWindows(): WindowInfo[] {
       const geoRaw = execSync(`xdotool getwindowgeometry --shell ${decId}`, {
         encoding: "utf-8",
         timeout: 2000,
+        env: x11Env(),
       });
       const geo = parseGeometry(geoRaw);
 
@@ -108,7 +125,7 @@ export function listWindows(): WindowInfo[] {
         // xprop returns WM_CLASS(STRING) = "instance", "class"
         const xprop = execSync(
           `xprop -id ${decId} WM_CLASS 2>/dev/null`,
-          { encoding: "utf-8", timeout: 2000 }
+          { encoding: "utf-8", timeout: 2000, env: x11Env() }
         );
         const match = xprop.match(/"([^"]+)",\s*"([^"]+)"/);
         if (match) className = match[2];
@@ -212,9 +229,6 @@ export class CaptureManager extends EventEmitter {
 
     // convert hex window id to decimal for ffmpeg
     const decId = parseInt(windowId, 16).toString(10);
-    const xauth = findXauthority();
-    console.log(`[capture] starting ffmpeg: windowId=${windowId} decId=${decId} DISPLAY=:0 XAUTHORITY=${xauth}`);
-
     const ffmpeg = spawn(
       "ffmpeg",
       [
@@ -230,12 +244,7 @@ export class CaptureManager extends EventEmitter {
       ],
       {
         stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          DISPLAY: ":0",
-          XAUTHORITY: findXauthority(),
-          HOME: process.env.HOME || "/home/deck",
-        },
+        env: x11Env(),
       }
     );
 
@@ -255,18 +264,17 @@ export class CaptureManager extends EventEmitter {
       }
     });
 
-    ffmpeg.stderr!.on("data", (chunk: Buffer) => {
-      console.log(`[ffmpeg:${windowId}] ${chunk.toString().trim()}`);
+    ffmpeg.stderr!.on("data", () => {
+      // ffmpeg progress goes to stderr — ignore unless debugging
     });
 
     ffmpeg.on("error", (err) => {
-      console.error(`[ffmpeg:${windowId}] spawn error:`, err.message);
       this.streams.delete(windowId);
       this.emit("error", windowId, err);
     });
 
     ffmpeg.on("close", (code) => {
-      console.log(`[ffmpeg:${windowId}] exited with code ${code}`);
+      if (code !== 0) console.error(`[stream] ffmpeg exited with code ${code} for window ${windowId}`);
       this.streams.delete(windowId);
       if (code !== 0 && code !== null) {
         this.emit(
