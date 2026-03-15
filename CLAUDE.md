@@ -126,7 +126,9 @@ The `PermissionRequest` hook event does NOT exist in Claude Code — only `PreTo
 
 When the user asks for QR codes or needs to connect their phone, **always provide ALL QR codes together** in the same response:
 1. **Expo Dev Client** QR — `exp+vibelink://expo-development-client/?url=http://<TAILSCALE_IP>:<METRO_PORT>`
-2. **Bridge Server** QR — `http://<TAILSCALE_IP>:3400`
+2. **Bridge Server** QR — `vibelink://connect?host=<TAILSCALE_IP>&port=3400&token=<TOKEN>`
+
+**Bridge QR MUST use `vibelink://connect` URI format**, not a plain `http://` URL. The app's QR scanner (`setup.tsx`) rejects anything that doesn't start with `vibelink://connect`. See `scripts/show-qr.js` for the canonical format.
 
 The user cannot scroll back to see old QR codes in voice mode. Always give both, every time.
 
