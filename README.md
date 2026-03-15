@@ -136,22 +136,29 @@ grep AUTH_TOKEN bridge/.env | cut -d= -f2          # auth token
 Tell them to download Tailscale from the App Store / Play Store and sign in
 with the same account as their computer. That's it — one-time setup.
 
-**Get the app:**
-Give them the APK download link: `https://github.com/jd1207/vibelink/releases/latest`
-If no prebuilt APK exists, build it and serve it:
+**QR code 1 — download the app:**
+Generate a QR code linking to the APK download. The user scans it with
+their phone camera to open the download page:
+```bash
+node scripts/show-qr.js https://github.com/jd1207/vibelink/releases/latest
+```
+Tell them: "Scan this with your phone camera to download the app."
+
+If no prebuilt APK exists on GitHub Releases, build it and serve it:
 ```bash
 cd mobile && npm install && npx expo prebuild --platform android --clean
 cd android && ./gradlew assembleRelease && cd ..
 python3 -m http.server 9090 -d android/app/build/outputs/apk/release
-# tell user to open http://<tailscale-ip>:9090/app-release.apk on phone
+# then generate QR for the local download:
+node scripts/show-qr.js http://<tailscale-ip>:9090/app-release.apk
 ```
 
-**Connect — scan QR code:**
-Show them the QR code:
+**QR code 2 — connect to the bridge:**
+Once the app is installed, generate the connection QR code:
 ```bash
 node scripts/show-qr.js <tailscale-ip> 3400 <auth-token>
 ```
-Tell them: "Open the app, tap 'scan qr code', point at the screen."
+Tell them: "Open VibeLink, tap 'scan qr code', point at the screen."
 If QR doesn't render, give them the IP and token to type manually.
 
 ### Troubleshooting
