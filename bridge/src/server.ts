@@ -200,7 +200,6 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     session.captureManager = captureManager;
 
     captureManager.on("frame", (windowId: string, jpeg: Buffer, seq: number) => {
-      if (seq <= 3) console.log(`[stream] frame ${seq} for ${windowId}: ${(jpeg.length/1024).toFixed(0)}KB`);
       const packed = packFrame(windowId, jpeg, seq);
       wsTracker.broadcastBinary(session.id, packed);
     });
@@ -295,8 +294,6 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
         return;
       }
 
-      console.log(`[ws:${sessionId}] received: ${msg.type}`);
-
       if (msg.type === "reconnect") {
         const lastEventId = typeof msg.lastEventId === "number" ? msg.lastEventId : 0;
         const missed = session.buffer.getAfter(lastEventId);
@@ -335,11 +332,8 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
 
       if (msg.type === "start_stream") {
         const { windowId, fps, quality } = msg as Record<string, unknown>;
-        console.log(`[stream] start_stream received: windowId=${windowId}, sessionId=${sessionId}`);
         if (!windowId || typeof windowId !== "string") return;
-        const session = sessionManager.get(sessionId);
-        console.log(`[stream] session found: ${!!session}, has captureManager: ${!!session?.captureManager}`);
-        const cm = session?.captureManager;
+        const cm = sessionManager.get(sessionId)?.captureManager;
         cm?.startStream(windowId, {
           fps: typeof fps === "number" ? fps : undefined,
           quality: typeof quality === "number" ? quality : undefined,
