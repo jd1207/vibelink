@@ -10,7 +10,7 @@ import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
 import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
-import { scanClaudeSessions } from "./session-scanner.js";
+import { scanClaudeSessions, deleteClaudeSession } from "./session-scanner.js";
 import { execSync } from "child_process";
 
 // get tailscale IP for rewriting localhost URLs so phone can reach dev servers
@@ -198,6 +198,21 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     } catch (err) {
       console.error("[claude-sessions] scan failed:", err);
       res.status(500).json({ error: "session scan failed" });
+    }
+  });
+
+  // delete a claude code session's JSONL file
+  expressApp.delete("/claude-sessions/:sessionId", async (req, res) => {
+    try {
+      const deleted = await deleteClaudeSession(req.params.sessionId);
+      if (deleted) {
+        res.status(204).send();
+      } else {
+        res.status(404).json({ error: "session not found" });
+      }
+    } catch (err) {
+      console.error("[claude-sessions] delete failed:", err);
+      res.status(500).json({ error: "delete failed" });
     }
   });
 
