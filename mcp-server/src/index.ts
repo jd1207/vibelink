@@ -7,6 +7,7 @@ import { registerInputTools } from "./tools/input.js";
 import { registerNotifyTools } from "./tools/notify.js";
 import { registerWorkspaceTools } from "./tools/workspace.js";
 import { registerScreenMirrorTools } from "./tools/screen-mirror.js";
+import { registerFileBrowserTools } from "./tools/file-browser.js";
 
 const sessionId = process.env.VIBELINK_SESSION_ID;
 if (!sessionId) {
@@ -25,6 +26,7 @@ registerInputTools(server, ipc, sessionId);
 registerNotifyTools(server, ipc, sessionId);
 registerWorkspaceTools(server, ipc, sessionId);
 registerScreenMirrorTools(server, ipc, sessionId);
+registerFileBrowserTools(server);
 
 ipc.connect();
 
