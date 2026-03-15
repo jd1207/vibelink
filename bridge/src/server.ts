@@ -58,8 +58,8 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     ipcClientCount = Math.max(0, ipcClientCount - 1);
     console.log(`[ipc] mcp server disconnected (session=${sid}), total=${ipcClientCount}`);
   });
-  await ipcServer.start(config.ipcSocketPath).catch(() => {
-    // ipc socket failure is non-fatal in test/dev
+  await ipcServer.start(config.ipcSocketPath).catch((err) => {
+    console.error(`[ipc] failed to start IPC server: ${err.message}`);
   });
 
   const expressApp = express();
