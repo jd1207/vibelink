@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { config } from "./config.js";
-import { x11Env } from "./x11-helpers.js";
+import { x11Env, getWindowGeometry } from "./x11-helpers.js";
 
 export type { WindowInfo } from "./x11-helpers.js";
 export { listWindows } from "./x11-helpers.js";
@@ -130,17 +130,38 @@ export class CaptureManager extends EventEmitter {
       return;
     }
 
-    const o = { ...DEFAULT_OPTS, ...opts };
+    // strip undefined values so they don't overwrite defaults
+    // (server.ts passes {fps: undefined} when mobile doesn't specify)
+    const defined = opts
+      ? Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined))
+      : {};
+    const o = { ...DEFAULT_OPTS, ...defined } as Required<StreamOptions>;
     log(windowId, "starting stream", { size: `${o.width}x${o.height}`, fps: o.fps, quality: o.quality });
     this.spawnFfmpeg(windowId, o, 0);
   }
 
   private spawnFfmpeg(windowId: string, opts: Required<StreamOptions>, restartCount: number): void {
     const decId = parseInt(windowId, 16).toString(10);
+
+    // capture at the window's actual size so we get the full content
+    // (hardcoded 1280x720 would cut off taller windows)
+    const geo = getWindowGeometry(windowId);
+    let captureW: number;
+    let captureH: number;
+    if (geo) {
+      captureW = geo.width;
+      captureH = geo.height;
+      log(windowId, "window geometry", { size: `${captureW}x${captureH}` });
+    } else {
+      captureW = opts.width;
+      captureH = opts.height;
+      log(windowId, "could not query window geometry, using requested size");
+    }
+
     const args = [
       "-f", "x11grab",
       "-window_id", decId,
-      "-video_size", `${opts.width}x${opts.height}`,
+      "-video_size", `${captureW}x${captureH}`,
       "-framerate", String(opts.fps),
       "-i", `:0`,
       "-f", "mjpeg",
@@ -244,6 +265,8 @@ export class CaptureManager extends EventEmitter {
           this.pendingRestarts.add(windowId);
           this.emit("restarting", windowId, restartCount + 1);
           setTimeout(() => {
+            // bail if restart was cancelled by stopStream/stopAll
+            if (!this.pendingRestarts.has(windowId)) return;
             this.pendingRestarts.delete(windowId);
             if (!this.streams.has(windowId)) {
               this.spawnFfmpeg(windowId, opts, restartCount + 1);
