@@ -6,8 +6,6 @@ const EMPTY_WINDOW_LIST: WindowInfo[] = [];
 
 export { EMPTY_STREAM_TABS, EMPTY_WINDOW_LIST };
 
-let streamCounter = 0;
-
 interface StreamState {
   streamTabs: Record<string, Record<string, StreamTab>>;
   windowLists: Record<string, WindowInfo[]>;
@@ -27,23 +25,25 @@ export const useStreamStore = create<StreamState>((set) => ({
   windowLists: {},
   pickerOpen: {},
 
-  addStreamTab: (sessionId, windowId, title, status = "streaming") => {
-    streamCounter++;
-    set((s) => ({
-      streamTabs: {
-        ...s.streamTabs,
-        [sessionId]: {
-          ...s.streamTabs[sessionId],
-          [windowId]: {
-            windowId,
-            windowTitle: title,
-            tabLabel: `Stream ${streamCounter}`,
-            status,
+  addStreamTab: (sessionId, windowId, title, status = "streaming") =>
+    set((s) => {
+      const existing = s.streamTabs[sessionId] ?? {};
+      const nextNum = Object.keys(existing).length + 1;
+      return {
+        streamTabs: {
+          ...s.streamTabs,
+          [sessionId]: {
+            ...existing,
+            [windowId]: {
+              windowId,
+              windowTitle: title,
+              tabLabel: `Stream ${nextNum}`,
+              status,
+            },
           },
         },
-      },
-    }));
-  },
+      };
+    }),
 
   updateStreamTab: (sessionId, windowId, updates) =>
     set((s) => {
