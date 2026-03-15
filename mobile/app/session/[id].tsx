@@ -16,12 +16,14 @@ import { TabBar } from '../../src/components/TabBar';
 import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
 import { formatToolName, formatToolInput } from '../../src/components/tool-format';
+import { useColors } from '../../src/store/settings';
 
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
   | { kind: 'tool'; data: ContentBlock; messageId: string };
 
 export default function SessionScreen() {
+  const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = id ?? '';
   const insets = useSafeAreaInsets();
@@ -215,7 +217,7 @@ export default function SessionScreen() {
         options={{ title: 'chat', headerRight: () => <ConnectionBadge /> }}
       />
       <View
-        style={{ flex: 1, backgroundColor: '#0a0a0a', paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
+        style={{ flex: 1, backgroundColor: colors.bg.primary, paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
       >
         <TabBar tabs={tabNames} activeTab={activeTab} onTabPress={handleTabPress} />
 
@@ -242,7 +244,7 @@ export default function SessionScreen() {
               contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center pt-32">
-                  <Text className="text-[#52525b] text-base">send a message to start</Text>
+                  <Text className="text-base" style={{ color: colors.text.dim }}>send a message to start</Text>
                 </View>
               }
             />
@@ -250,32 +252,35 @@ export default function SessionScreen() {
         </View>
 
         {permissionRequest ? (
-          <View className="px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
+          <View className="px-4 py-3 border-t"
+            style={{ backgroundColor: colors.bg.surface, borderTopColor: colors.status.warning + '33' }}>
             <View className="flex-row items-center gap-2">
               <View className="flex-1">
                 <View className="flex-row items-center gap-2">
-                  <Text className="text-[#fbbf24] text-xs font-semibold">
+                  <Text className="text-xs font-semibold" style={{ color: colors.status.warning }}>
                     {formatToolName(permissionRequest.toolName)}
                   </Text>
                   {permissionQueue.length > 1 ? (
-                    <Text className="text-[#71717a] text-[10px]">
+                    <Text className="text-[10px]" style={{ color: colors.text.subtle }}>
                       +{permissionQueue.length - 1} more
                     </Text>
                   ) : null}
                 </View>
-                <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
+                <Text className="text-[11px] mt-0.5" numberOfLines={2} style={{ color: colors.text.muted }}>
                   {formatToolInput(permissionRequest.toolName, permissionRequest.toolInput)}
                 </Text>
               </View>
               <Pressable
                 onPress={() => handlePermissionResponse('allow')}
-                className="bg-[#16a34a] rounded-lg px-4 py-2 active:opacity-80"
+                className="rounded-lg px-4 py-2 active:opacity-80"
+                style={{ backgroundColor: colors.accent.primary }}
               >
                 <Text className="text-white font-semibold text-sm">approve</Text>
               </Pressable>
               <Pressable
                 onPress={() => handlePermissionResponse('deny')}
-                className="bg-[#dc2626] rounded-lg px-4 py-2 active:opacity-80"
+                className="rounded-lg px-4 py-2 active:opacity-80"
+                style={{ backgroundColor: colors.status.errorDark }}
               >
                 <Text className="text-white font-semibold text-sm">deny</Text>
               </Pressable>
@@ -303,10 +308,10 @@ export default function SessionScreen() {
             onPress={() => setEditingStream(null)}
           >
             <Pressable
-              style={{ backgroundColor: '#1c1c1e', borderRadius: 12, padding: 20, width: 260 }}
+              style={{ backgroundColor: colors.bg.surface, borderRadius: 12, padding: 20, width: 260 }}
               onPress={(e) => e.stopPropagation()}
             >
-              <Text style={{ color: '#e2e8f0', fontSize: 15, fontWeight: '600', marginBottom: 12 }}>
+              <Text style={{ color: colors.text.secondary, fontSize: 15, fontWeight: '600', marginBottom: 12 }}>
                 rename tab
               </Text>
               <TextInput
@@ -314,7 +319,7 @@ export default function SessionScreen() {
                 onChangeText={(t) => setEditLabel(t.slice(0, 10))}
                 maxLength={10}
                 style={{
-                  backgroundColor: '#27272a', color: '#e2e8f0', borderRadius: 8,
+                  backgroundColor: colors.bg.elevated, color: colors.text.secondary, borderRadius: 8,
                   paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 16,
                 }}
                 autoFocus
@@ -327,9 +332,9 @@ export default function SessionScreen() {
                   }
                   setEditingStream(null);
                 }}
-                style={{ backgroundColor: '#2563eb', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }}
+                style={{ backgroundColor: colors.accent.dark, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }}
               >
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>save</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>save</Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -340,9 +345,9 @@ export default function SessionScreen() {
                   }
                   setEditingStream(null);
                 }}
-                style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                style={{ backgroundColor: colors.status.errorDark, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
               >
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>close stream</Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>close stream</Text>
               </Pressable>
             </Pressable>
           </Pressable>
