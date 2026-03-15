@@ -1,6 +1,7 @@
 import "../global.css";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Stack, router } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
@@ -45,6 +46,60 @@ export default function RootLayout() {
       }, 0);
     })();
   }, [setBridgeUrl, setAuthToken]);
+
+  const pendingDeepLink = useRef<string | null>(null);
+  const initialUrlChecked = useRef(false);
+
+  // check for initial deep link (app launched via URI) — runs once
+  useEffect(() => {
+    if (initialUrlChecked.current) return;
+    initialUrlChecked.current = true;
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        if (ready) {
+          handleDeepLink(url);
+        } else {
+          pendingDeepLink.current = url;
+        }
+      }
+    });
+  }, []);
+
+  // listen for deep links while app is running
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (ready) {
+        handleDeepLink(url);
+      } else {
+        pendingDeepLink.current = url;
+      }
+    });
+    return () => sub.remove();
+  }, [ready]);
+
+  // process queued deep link after init completes
+  useEffect(() => {
+    if (ready && pendingDeepLink.current) {
+      handleDeepLink(pendingDeepLink.current);
+      pendingDeepLink.current = null;
+    }
+  }, [ready]);
+
+  function handleDeepLink(url: string) {
+    if (!url.startsWith('vibelink://connect')) return;
+    try {
+      const parsed = new URL(url);
+      const host = parsed.searchParams.get('host');
+      const port = parsed.searchParams.get('port') || '3400';
+      const token = parsed.searchParams.get('token') || '';
+      if (host) {
+        router.replace({
+          pathname: '/setup',
+          params: { host, port, token },
+        });
+      }
+    } catch {}
+  }
 
   if (!ready) return null;
 
