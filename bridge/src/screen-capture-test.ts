@@ -161,6 +161,9 @@ wss.on("connection", (client) => {
     }
 
     if (msg.type === "start_stream") {
+      // stop any existing streams before starting a new one
+      // prevents flickering from multiple streams emitting frames
+      capture.stopAll();
       console.log(`[test] starting stream for ${msg.windowId}`);
       capture.startStream(msg.windowId);
     }

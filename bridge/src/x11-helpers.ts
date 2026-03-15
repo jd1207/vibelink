@@ -109,3 +109,20 @@ export function listWindows(): WindowInfo[] {
 
   return windows;
 }
+
+// query geometry of a single window by hex id
+export function getWindowGeometry(hexId: string): { width: number; height: number } | null {
+  const decId = parseInt(hexId, 16).toString(10);
+  try {
+    const raw = execSync(`xdotool getwindowgeometry --shell ${decId}`, {
+      encoding: "utf-8",
+      timeout: 2000,
+      env: x11Env(),
+    });
+    const geo = parseGeometry(raw);
+    if (geo.width > 0 && geo.height > 0) return { width: geo.width, height: geo.height };
+  } catch {
+    // window may have closed
+  }
+  return null;
+}
