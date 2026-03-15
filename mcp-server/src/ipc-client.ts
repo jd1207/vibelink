@@ -27,11 +27,17 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
 
   connect(): void {
     if (this.closed) return;
-    this.socket = net.createConnection(this.socketPath);
+    if (this.socketPath.startsWith("tcp:")) {
+      const port = parseInt(this.socketPath.slice(4), 10);
+      this.socket = net.createConnection(port, "127.0.0.1");
+    } else {
+      this.socket = net.createConnection(this.socketPath);
+    }
 
     this.socket.on("connect", () => {
       this.retryCount = 0;
       this.buffer = "";
+      process.stderr.write(`[ipc] connected to ${this.socketPath}\n`);
       this.send({ type: "handshake", sessionId: this.sessionId });
     });
 
@@ -57,7 +63,8 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
       this.scheduleRetry();
     });
 
-    this.socket.on("error", () => {
+    this.socket.on("error", (err) => {
+      process.stderr.write(`[ipc] connection error: ${(err as Error).message}\n`);
       this.socket?.destroy();
       this.socket = null;
       this.scheduleRetry();
