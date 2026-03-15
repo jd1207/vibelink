@@ -375,7 +375,7 @@ See package READMEs for internals:
 ### Later
 
 - [ ] **Interactive streaming** -- click, scroll, and type into mirrored windows (input forwarding via xdotool)
-- [ ] **Unity playtesting** -- mirror Unity Game View for remote playtesting on phone
+- [ ] **App integrations** -- interactive mirroring for Unity (Game View playtesting), Blender (viewport preview), and other creative tools
 - [ ] **WebRTC transport** -- lower latency streaming with better codec support
 - [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
 - [ ] **Push notifications** -- get notified when Claude finishes a long task
