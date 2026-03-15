@@ -22,6 +22,26 @@ interface DebugInfo {
   uptime: number;
 }
 
+export interface FileEntry {
+  name: string;
+  type: 'file' | 'directory';
+  size: number;
+  modified: string;
+}
+
+export interface BrowseResult {
+  path: string;
+  entries: FileEntry[];
+}
+
+export interface ViewFileResult {
+  path: string;
+  lines: number;
+  totalLines: number;
+  truncated: boolean;
+  content: string;
+}
+
 function getHeaders(): Record<string, string> {
   const { authToken } = useConnectionStore.getState();
   return {
@@ -86,4 +106,12 @@ export const bridgeApi = {
 
   getDebug: (): Promise<DebugInfo> =>
     apiFetch<DebugInfo>('/debug'),
+
+  browseFiles: (sessionId: string, path?: string): Promise<BrowseResult> => {
+    const query = path ? `?path=${encodeURIComponent(path)}` : '';
+    return apiFetch<BrowseResult>(`/sessions/${sessionId}/files${query}`);
+  },
+
+  viewFile: (sessionId: string, path: string): Promise<ViewFileResult> =>
+    apiFetch<ViewFileResult>(`/sessions/${sessionId}/files/view?path=${encodeURIComponent(path)}`),
 };

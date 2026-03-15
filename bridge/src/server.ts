@@ -257,6 +257,111 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     });
   });
 
+  // file browser endpoints
+  expressApp.get("/sessions/:id/files", async (req, res) => {
+    const session = sessionManager.get(req.params.id);
+    if (!session) { res.status(404).json({ error: "session not found" }); return; }
+
+    const { readdir, stat } = await import("fs/promises");
+    const { resolve, join, relative } = await import("path");
+    const { execFileSync } = await import("child_process");
+
+    const root = session.projectPath;
+    const requestedPath = (req.query.path as string) || ".";
+    const targetPath = resolve(root, requestedPath);
+
+    if (!targetPath.startsWith(root)) {
+      res.status(400).json({ error: "path outside project root" }); return;
+    }
+
+    try {
+      const dirents = await readdir(targetPath, { withFileTypes: true });
+      const names = dirents.map((d) => d.name);
+
+      // batch gitignore check
+      let ignored = new Set<string>();
+      if (names.length > 0) {
+        try {
+          const paths = names.map((n) => join(targetPath, n));
+          const result = execFileSync("git", ["check-ignore", ...paths], {
+            encoding: "utf-8", timeout: 5000, cwd: targetPath,
+          });
+          for (const line of result.split("\n")) {
+            const name = line.trim().split("/").pop();
+            if (name) ignored.add(name);
+          }
+        } catch { /* exit 1 = nothing ignored */ }
+      }
+
+      const entries = [];
+      for (const d of dirents) {
+        if (d.name === ".git") continue;
+        if (d.name.startsWith(".")) continue;
+        if (ignored.has(d.name)) continue;
+        if (entries.length >= 200) break;
+        try {
+          const s = await stat(join(targetPath, d.name));
+          entries.push({
+            name: d.name,
+            type: d.isDirectory() ? "directory" : "file",
+            size: s.size,
+            modified: s.mtime.toISOString(),
+          });
+        } catch { /* skip unreadable */ }
+      }
+
+      entries.sort((a, b) => {
+        if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      res.json({ path: relative(root, targetPath) || ".", entries });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  expressApp.get("/sessions/:id/files/view", async (req, res) => {
+    const session = sessionManager.get(req.params.id);
+    if (!session) { res.status(404).json({ error: "session not found" }); return; }
+
+    const { readFile, stat } = await import("fs/promises");
+    const { resolve, relative } = await import("path");
+
+    const filePath = req.query.path as string;
+    if (!filePath) { res.status(400).json({ error: "path required" }); return; }
+
+    const root = session.projectPath;
+    const targetPath = resolve(root, filePath);
+
+    if (!targetPath.startsWith(root)) {
+      res.status(400).json({ error: "path outside project root" }); return;
+    }
+
+    try {
+      const s = await stat(targetPath);
+      if (s.isDirectory()) {
+        res.status(400).json({ error: "path is a directory" }); return;
+      }
+
+      const raw = await readFile(targetPath, "utf-8");
+      const lines = raw.split("\n");
+      const limit = 500;
+      const truncated = lines.length > limit;
+      const content = truncated ? lines.slice(0, limit).join("\n") : raw;
+
+      res.json({
+        path: relative(root, targetPath),
+        lines: Math.min(lines.length, limit),
+        totalLines: lines.length,
+        truncated,
+        content,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   const server = http.createServer(expressApp);
   const wss = new WebSocketServer({ noServer: true });
 
