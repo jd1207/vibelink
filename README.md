@@ -4,6 +4,10 @@
 
 <br/>
 
+<img src="assets/demo.gif" alt="VibeLink demo — chat, streaming, workspace" width="300"/>
+
+<br/>
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-22%2B-brightgreen.svg)](https://nodejs.org)
 [![React Native](https://img.shields.io/badge/react_native-expo_54-blueviolet.svg)](https://expo.dev)
