@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import type { SessionMetadata } from '../store/message-types';
 
 interface MetadataPanelProps {
@@ -7,10 +7,33 @@ interface MetadataPanelProps {
 }
 
 export function MetadataPanel({ metadata }: MetadataPanelProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const totalTokens = (metadata.inputTokens ?? 0) + (metadata.outputTokens ?? 0);
   const contextMax = getContextMax(metadata.model);
   const contextPercent = totalTokens > 0 ? Math.min((totalTokens / contextMax) * 100, 100) : 0;
   const barColor = contextPercent > 80 ? '#ef4444' : contextPercent > 50 ? '#f59e0b' : '#3b82f6';
+
+  if (collapsed) {
+    return (
+      <Pressable
+        onPress={() => setCollapsed(false)}
+        className="flex-row items-center justify-between px-4 py-2 border-b border-[#27272a]"
+      >
+        <View className="flex-row items-center gap-2">
+          {metadata.model ? (
+            <Text className="text-[#60a5fa] text-[10px] font-semibold">{metadata.model}</Text>
+          ) : null}
+          {totalTokens > 0 ? (
+            <Text className="text-[#52525b] text-[10px]">{formatTokens(totalTokens)}</Text>
+          ) : null}
+          {metadata.costUsd != null ? (
+            <Text className="text-[#52525b] text-[10px]">${metadata.costUsd.toFixed(3)}</Text>
+          ) : null}
+        </View>
+        <Text className="text-[#3b82f6] text-[10px]">expand</Text>
+      </Pressable>
+    );
+  }
 
   return (
     <View className="px-4 pt-3 pb-2 border-b border-[#27272a]">
@@ -25,11 +48,9 @@ export function MetadataPanel({ metadata }: MetadataPanelProps) {
             {metadata.cwd.split('/').slice(-2).join('/')}
           </Text>
         ) : null}
-        {metadata.permissionMode ? (
-          <View className="bg-[#1c1917] rounded-md px-2 py-1">
-            <Text className="text-[#a1a1aa] text-[10px]">{metadata.permissionMode}</Text>
-          </View>
-        ) : null}
+        <Pressable onPress={() => setCollapsed(true)} className="active:opacity-60">
+          <Text className="text-[#3b82f6] text-[10px]">collapse</Text>
+        </Pressable>
       </View>
 
       {totalTokens > 0 ? (

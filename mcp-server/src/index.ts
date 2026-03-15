@@ -13,7 +13,7 @@ if (!sessionId) {
   process.exit(1);
 }
 
-const socketPath = process.env.VIBELINK_IPC_SOCKET ?? "/tmp/vibelink.sock";
+const socketPath = process.env.VIBELINK_IPC_SOCKET ?? "tcp:3401";
 
 const server = new McpServer({ name: "vibelink", version: "0.1.0" });
 const ipc = new IpcClient(socketPath, sessionId);

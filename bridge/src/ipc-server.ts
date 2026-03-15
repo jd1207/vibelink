@@ -2,16 +2,28 @@ import { EventEmitter } from "events";
 import net from "net";
 import { unlink } from "fs/promises";
 
+// parses "tcp:3401" → { port: 3401 } or "/path/to/sock" → { path: "/path/to/sock" }
+function parseListenTarget(target: string): { port: number } | { path: string } {
+  if (target.startsWith("tcp:")) {
+    return { port: parseInt(target.slice(4), 10) };
+  }
+  return { path: target };
+}
+
 export class IpcServer extends EventEmitter {
   private server: net.Server | null = null;
   private sockets = new Map<string, net.Socket>();
 
   async start(socketPath: string): Promise<void> {
-    // remove stale socket file if it exists
-    try {
-      await unlink(socketPath);
-    } catch {
-      // file didn't exist — fine
+    const target = parseListenTarget(socketPath);
+
+    // remove stale socket file if using unix socket
+    if ("path" in target) {
+      try {
+        await unlink(target.path);
+      } catch {
+        // file didn't exist — fine
+      }
     }
 
     this.server = net.createServer((socket) => {
@@ -35,7 +47,6 @@ export class IpcServer extends EventEmitter {
           }
 
           if (!sessionId) {
-            // first message must be a handshake
             if (parsed.type === "handshake" && typeof parsed.sessionId === "string") {
               sessionId = parsed.sessionId;
               this.sockets.set(sessionId, socket);
@@ -64,8 +75,12 @@ export class IpcServer extends EventEmitter {
     });
 
     await new Promise<void>((resolve, reject) => {
-      this.server!.listen(socketPath, resolve);
       this.server!.once("error", reject);
+      if ("port" in target) {
+        this.server!.listen(target.port, "127.0.0.1", resolve);
+      } else {
+        this.server!.listen(target.path, resolve);
+      }
     });
   }
 
