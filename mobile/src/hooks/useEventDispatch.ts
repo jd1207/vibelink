@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useMessageStore, ClaudeEvent, SessionMetadata } from '../store/messages';
+import { useStreamStore } from "../store/stream-store";
 
 export function useEventDispatch(sessionId: string) {
   // grab actions once — they're stable references from zustand
@@ -14,6 +15,8 @@ export function useEventDispatch(sessionId: string) {
   const setMetadata = useMessageStore((s) => s.setMetadata);
   const updateUsage = useMessageStore((s) => s.updateUsage);
   const setCanvas = useMessageStore((s) => s.setCanvas);
+
+  const { addStreamTab, updateStreamTab, removeStreamTab, setWindowList } = useStreamStore.getState();
 
   const dispatch = useCallback((data: ClaudeEvent) => {
     if (data.eventId) {
@@ -110,6 +113,30 @@ export function useEventDispatch(sessionId: string) {
       case 'session_error':
       case 'session_ended':
         setStreaming(sessionId, false);
+        break;
+      case "window_list":
+        setWindowList(sessionId, data.windows ?? []);
+        break;
+      case "stream_confirm":
+        addStreamTab(sessionId, data.windowId!, data.windowTitle ?? data.windowId!, "confirming");
+        break;
+      case "stream_started":
+        addStreamTab(sessionId, data.windowId!, data.windowTitle ?? data.windowId!, "streaming");
+        break;
+      case "stream_stopped":
+        removeStreamTab(sessionId, data.windowId!);
+        break;
+      case "stream_error":
+        updateStreamTab(sessionId, data.windowId!, {
+          status: "error",
+          errorMessage: data.error,
+        });
+        break;
+      case "stream_status":
+        updateStreamTab(sessionId, data.windowId!, {
+          fps: data.fps,
+          frameSize: data.frameSize,
+        });
         break;
     }
   }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, setPermissionRequest, addTab, setMetadata, updateUsage, setCanvas]);

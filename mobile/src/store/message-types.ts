@@ -20,6 +20,12 @@ export interface ClaudeEvent {
   error?: string;
   resumable?: boolean;
   reason?: string;
+  windowId?: string;
+  windowTitle?: string;
+  windows?: WindowInfo[];
+  accepted?: boolean;
+  fps?: number;
+  frameSize?: number;
 }
 
 export interface ChatMessage {
@@ -69,4 +75,22 @@ export interface WorkspaceCanvas {
   html?: string;
   url?: string;
   title?: string;
+}
+
+export interface StreamTab {
+  windowId: string;
+  windowTitle: string;
+  tabLabel: string;
+  status: 'confirming' | 'streaming' | 'stopped' | 'error';
+  fps?: number;
+  frameSize?: number;
+  errorMessage?: string;
+}
+
+export interface WindowInfo {
+  id: string;
+  title: string;
+  className: string;
+  width: number;
+  height: number;
 }

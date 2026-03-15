@@ -9,6 +9,7 @@ import { IpcServer } from "./ipc-server.js";
 import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
+import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
 
 interface AppOptions {
   port?: number;
@@ -194,6 +195,30 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       return;
     }
     const session = sessionManager.create(projectPath, resumeSessionId, skipPermissions);
+
+    const captureManager = new CaptureManager();
+    session.captureManager = captureManager;
+
+    captureManager.on("frame", (windowId: string, jpeg: Buffer, seq: number) => {
+      const packed = packFrame(windowId, jpeg, seq);
+      wsTracker.broadcastBinary(session.id, packed);
+    });
+
+    captureManager.on("error", (windowId: string, err: Error) => {
+      wsTracker.broadcastToSession(session.id, {
+        type: "stream_error",
+        windowId,
+        error: err.message,
+      });
+    });
+
+    captureManager.on("stopped", (windowId: string) => {
+      wsTracker.broadcastToSession(session.id, {
+        type: "stream_stopped",
+        windowId,
+      });
+    });
+
     const wsUrl = `ws://localhost:${port}/ws/${session.id}`;
     res.status(201).json({ sessionId: session.id, wsUrl });
   });
@@ -296,6 +321,55 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
 
       if (msg.type === "ui_interaction" || msg.type === "input_response") {
         ipcServer.sendToSession(sessionId, msg);
+        return;
+      }
+
+      if (msg.type === "list_windows") {
+        const windows = listWindows();
+        wsTracker.broadcastToSession(sessionId, { type: "window_list", windows });
+        return;
+      }
+
+      if (msg.type === "start_stream") {
+        const { windowId, fps, quality } = msg as Record<string, unknown>;
+        if (!windowId || typeof windowId !== "string") return;
+        const cm = sessionManager.get(sessionId)?.captureManager;
+        cm?.startStream(windowId, {
+          fps: typeof fps === "number" ? fps : undefined,
+          quality: typeof quality === "number" ? quality : undefined,
+        });
+        const title = listWindows().find((w) => w.id === windowId)?.title ?? windowId;
+        wsTracker.broadcastToSession(sessionId, { type: "stream_started", windowId, title });
+        return;
+      }
+
+      if (msg.type === "stop_stream") {
+        const cm = sessionManager.get(sessionId)?.captureManager;
+        if (msg.windowId) {
+          cm?.stopStream(String(msg.windowId));
+        } else {
+          cm?.stopAll();
+        }
+        wsTracker.broadcastToSession(sessionId, {
+          type: "stream_stopped",
+          windowId: msg.windowId ?? "all",
+        });
+        return;
+      }
+
+      if (msg.type === "stream_confirm_response") {
+        const cm = sessionManager.get(sessionId)?.captureManager;
+        if (msg.accepted && msg.windowId) {
+          cm?.startStream(String(msg.windowId), {
+            fps: typeof msg.fps === "number" ? msg.fps : undefined,
+            quality: typeof msg.quality === "number" ? msg.quality : undefined,
+          });
+          const title = listWindows().find((w) => w.id === String(msg.windowId))?.title ?? String(msg.windowId);
+          wsTracker.broadcastToSession(sessionId, { type: "stream_started", windowId: String(msg.windowId), title });
+        } else if (msg.windowId) {
+          wsTracker.broadcastToSession(sessionId, { type: "stream_stopped", windowId: String(msg.windowId) });
+        }
+        return;
       }
     });
   });
@@ -313,6 +387,55 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   ipcServer.on("message", (sessionId: string, msg: Record<string, unknown>) => {
     const session = sessionManager.get(sessionId);
     if (!session) return;
+
+    // screen capture: list windows (request-response via IPC)
+    if (msg.type === "list_windows" && msg.requestId) {
+      const windows = listWindows();
+      ipcServer.sendToSession(sessionId, {
+        type: "response",
+        requestId: msg.requestId,
+        data: { windows },
+      });
+      return;
+    }
+
+    // screen capture: MCP tool requests streaming a window
+    if (msg.type === "stream_window") {
+      const windows = listWindows();
+      const match = msg.windowId
+        ? windows.find((w) => w.id === msg.windowId)
+        : windows.find((w) => new RegExp(String(msg.title), "i").test(w.title));
+
+      if (!match) {
+        wsTracker.broadcastToSession(sessionId, {
+          type: "stream_error",
+          windowId: String(msg.windowId ?? "unknown"),
+          error: `No window matching "${msg.title ?? msg.windowId}"`,
+        });
+        return;
+      }
+
+      wsTracker.broadcastToSession(sessionId, {
+        type: "stream_confirm",
+        windowId: match.id,
+        windowTitle: match.title,
+        fps: msg.fps,
+        quality: msg.quality,
+      });
+      return;
+    }
+
+    // screen capture: stop stream via IPC
+    if (msg.type === "stop_stream") {
+      const cm = session.captureManager;
+      if (msg.windowId) {
+        cm?.stopStream(String(msg.windowId));
+      } else {
+        cm?.stopAll();
+      }
+      // fall through to broadcast so clients know the stream stopped
+    }
+
     const buffered = session.buffer.push(msg);
     wsTracker.broadcastToSession(sessionId, {
       eventId: buffered.eventId,
