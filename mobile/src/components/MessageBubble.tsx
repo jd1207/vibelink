@@ -26,10 +26,14 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
   return (
     <View className={`px-4 py-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
       <View
-        className="rounded-2xl px-4 py-2.5 max-w-[85%]"
-        style={{ backgroundColor: isUser ? colors.accent.userBubble : colors.accent.assistantBubble }}
+        className="rounded-xl px-4 py-2.5 max-w-[85%]"
+        style={{
+          backgroundColor: isUser ? colors.bg.surface : colors.accent.assistantBubble,
+          borderWidth: isUser ? 1 : 0,
+          borderColor: colors.border.default,
+        }}
       >
-        <MarkdownContent text={message.content} isUser={isUser} />
+        <MarkdownContent text={message.content} isUser={false} />
         {message.isStreaming ? <AnimatedDots /> : null}
       </View>
       <Text className="text-[10px] mt-1 px-1" style={{ color: colors.text.dim }}>{timeStr}</Text>
