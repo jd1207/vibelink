@@ -32,6 +32,7 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
   const metadata = useMessageStore((s) => s.metadata[sessionId] ?? EMPTY_METADATA);
   const components = useMessageStore((s) => s.components[sessionId] ?? EMPTY_COMPONENTS);
   const canvas = useMessageStore((s) => s.canvas[sessionId] ?? null);
+  const [workspaceTab, setWorkspaceTab] = React.useState<'canvas' | 'files'>('files');
 
   const componentList = React.useMemo(() => {
     return Object.values(components).filter(
@@ -43,13 +44,41 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
   const hasComponents = componentList.length > 0;
   const hasCanvas = canvas !== null;
 
+  // auto-switch to canvas when content arrives
+  React.useEffect(() => {
+    if (hasCanvas || hasComponents) setWorkspaceTab('canvas');
+  }, [hasCanvas, hasComponents]);
+
+  const showTabBar = hasCanvas || hasComponents;
+
   return (
     <View className="flex-1">
       {hasMetadata ? <MetadataPanel metadata={metadata} /> : null}
 
-      {hasCanvas ? (
+      {showTabBar ? (
+        <View className="flex-row px-4 py-1.5 border-b border-[#27272a]">
+          <Pressable onPress={() => setWorkspaceTab('canvas')}>
+            <Text className="text-xs mr-4" style={{ color: workspaceTab === 'canvas' ? '#fafafa' : '#52525b' }}>
+              {canvas?.title || 'content'}
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => setWorkspaceTab('files')}>
+            <Text className="text-xs" style={{ color: workspaceTab === 'files' ? '#fafafa' : '#52525b' }}>
+              files
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {workspaceTab === 'files' || (!hasCanvas && !hasComponents) ? (
+        <View style={{ display: workspaceTab === 'files' || (!hasCanvas && !hasComponents) ? 'flex' : 'none', flex: 1 }}>
+          <WorkspaceFileBrowser sessionId={sessionId} />
+        </View>
+      ) : null}
+
+      {workspaceTab === 'canvas' && hasCanvas ? (
         <CanvasWebView canvas={canvas} />
-      ) : hasComponents ? (
+      ) : workspaceTab === 'canvas' && hasComponents ? (
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
           {componentList.map((comp) => (
             <View key={comp.id} className="mb-3">
@@ -57,9 +86,7 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
             </View>
           ))}
         </ScrollView>
-      ) : (
-        <WorkspaceFileBrowser sessionId={sessionId} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -168,11 +195,21 @@ function MonitorIcon({ active }: { active: boolean }) {
 }
 
 function wrapHtml(html: string, desktop?: boolean): string {
-  if (html.includes('<html') || html.includes('<!DOCTYPE')) return html;
   const viewportWidth = desktop ? `${DESKTOP_WIDTH}` : 'device-width';
+  const viewportMeta = `<meta name="viewport" content="width=${viewportWidth},initial-scale=1">`;
+
+  // full HTML document — replace or inject viewport meta
+  if (html.includes('<html') || html.includes('<!DOCTYPE')) {
+    const viewportRegex = /<meta[^>]*name=["']viewport["'][^>]*>/i;
+    if (viewportRegex.test(html)) {
+      return html.replace(viewportRegex, viewportMeta);
+    }
+    return html.replace(/<head[^>]*>/i, `$&\n${viewportMeta}`);
+  }
+
   return `<!DOCTYPE html>
 <html><head>
-<meta name="viewport" content="width=${viewportWidth},initial-scale=1">
+${viewportMeta}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a0a; color: #fafafa; font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
