@@ -238,7 +238,9 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     const session = sessionManager.create(projectPath, resumeSessionId, skipPermissions);
 
     // hydrate the event buffer with historical messages so the phone
-    // sees the conversation when connecting via WebSocket
+    // sees the conversation when connecting via WebSocket.
+    // store in the same envelope format the phone expects:
+    // { eventId, type: "claude_event", event: <jsonl entry> }
     if (resumeSessionId) {
       try {
         const history = await readSessionHistory(resumeSessionId);
@@ -343,6 +345,20 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     }
 
     wsTracker.add(ws, sessionId);
+
+    // auto-send any buffered events to new clients (e.g. hydrated history)
+    // the phone only sends "reconnect" if it has a lastEventId, which it
+    // won't for a brand new session — so push the buffer proactively
+    const buffered = session.buffer.getAll();
+    if (buffered.length > 0) {
+      for (const e of buffered) {
+        const payload = e.payload as Record<string, unknown>;
+        ws.send(JSON.stringify({
+          eventId: e.eventId,
+          ...payload,
+        }));
+      }
+    }
 
     ws.on("message", (data) => {
       let msg: Record<string, unknown>;
