@@ -91,7 +91,7 @@ export default function ProjectsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'pick a project' }} />
+      <Stack.Screen options={{ title: 'new session' }} />
       <View className="flex-1 bg-[#0a0a0a]">
         <View className="px-4 pt-4 pb-2">
           <View className="bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 flex-row items-center">
@@ -155,7 +155,7 @@ export default function ProjectsScreen() {
             )}
             ListEmptyComponent={
               <View className="flex-1 items-center justify-center pt-24">
-                <Text className="text-[#52525b] text-base">no projects found</Text>
+                <Text className="text-[#52525b] text-base">no projects found on this machine</Text>
               </View>
             }
           />
