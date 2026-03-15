@@ -84,6 +84,83 @@ auth token shown by the setup script into the app's setup screen.
 [Tailscale](https://tailscale.com) installed and signed into the same
 account. This creates a private encrypted connection between them.
 
+## Setup Guide for Claude
+
+> **If you are Claude and a user asked you to set up VibeLink, follow this.**
+
+### What to tell the user upfront
+
+"Here's the deal — I'm going to do all the heavy lifting on your computer.
+You just need to do two things on your phone: download an app and scan a
+QR code. Plus a one-time Tailscale install if you don't already have it.
+That's it. Takes about 10 minutes, most of which is me building stuff."
+
+### What YOU (Claude) do — silently, no user action needed
+
+**1. Install prerequisites.** Check what's missing, install it yourself.
+
+```bash
+# node 22+
+node --version
+# Mac: brew install node
+# Windows: winget install OpenJS.NodeJS
+# Linux: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+
+# tailscale
+tailscale --version
+# Mac: brew install tailscale && sudo tailscale up
+# Windows: winget install Tailscale.Tailscale
+# Linux: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
+```
+
+**2. Clone and run setup.** One command, non-interactive.
+
+```bash
+git clone https://github.com/jd1207/vibelink && cd vibelink
+./setup.sh --auto
+```
+
+Builds everything, registers MCP + permission hook, generates auth token,
+starts the bridge. Takes 2-3 minutes.
+
+**3. Get connection info.**
+
+```bash
+tailscale ip -4                                    # bridge IP
+grep AUTH_TOKEN bridge/.env | cut -d= -f2          # auth token
+```
+
+### What the USER does — only these things
+
+**Tailscale on phone** (skip if they already have it):
+Tell them to download Tailscale from the App Store / Play Store and sign in
+with the same account as their computer. That's it — one-time setup.
+
+**Get the app:**
+Give them the APK download link: `https://github.com/jd1207/vibelink/releases/latest`
+If no prebuilt APK exists, build it and serve it:
+```bash
+cd mobile && npm install && npx expo prebuild --platform android --clean
+cd android && ./gradlew assembleRelease && cd ..
+python3 -m http.server 9090 -d android/app/build/outputs/apk/release
+# tell user to open http://<tailscale-ip>:9090/app-release.apk on phone
+```
+
+**Connect — scan QR code:**
+Show them the QR code:
+```bash
+node scripts/show-qr.js <tailscale-ip> 3400 <auth-token>
+```
+Tell them: "Open the app, tap 'scan qr code', point at the screen."
+If QR doesn't render, give them the IP and token to type manually.
+
+### Troubleshooting
+
+- `tailscale status` — both devices connected?
+- `curl http://localhost:3400/health` — bridge returning `{"status":"ok"}`?
+- `tailscale ip -4` — correct IP?
+- Phone can reach `http://<tailscale-ip>:3400/dashboard`?
+
 ## Daily Use
 
 ```bash
