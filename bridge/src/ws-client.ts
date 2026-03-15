@@ -62,6 +62,14 @@ export class WsClientTracker {
     }
   }
 
+  broadcastBinary(sessionId: string, buffer: Buffer): void {
+    for (const client of this.clients) {
+      if (client.sessionId !== sessionId) continue;
+      if (client.ws.readyState !== 1) continue;
+      client.ws.send(buffer);
+    }
+  }
+
   getSessionClients(sessionId: string): number {
     let count = 0;
     for (const client of this.clients) {

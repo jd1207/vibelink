@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { ClaudeProcess } from "./claude-process.js";
 import { EventBuffer, type BufferedEvent } from "./event-buffer.js";
 import { config } from "./config.js";
+import type { CaptureManager } from "./screen-capture.js";
 
 interface SessionManagerOptions {
   claudeCommand?: string;
@@ -16,6 +17,7 @@ export interface Session {
   buffer: EventBuffer;
   createdAt: Date;
   lastEventAt: Date;
+  captureManager?: CaptureManager;
 }
 
 export class SessionManager extends EventEmitter {
@@ -93,6 +95,7 @@ export class SessionManager extends EventEmitter {
   delete(id: string): void {
     const session = this.sessions.get(id);
     if (!session) return;
+    session.captureManager?.stopAll();
     session.process.kill();
     this.sessions.delete(id);
   }
