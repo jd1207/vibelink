@@ -1,10 +1,17 @@
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { useMessageStore, EMPTY_COMPONENTS } from '../store/messages';
 import type { SessionMetadata, WorkspaceCanvas } from '../store/message-types';
 import { MetadataPanel } from './MetadataPanel';
 import { DynamicRenderer } from './DynamicRenderer';
+
+// conditional load — react-native-webview not available in Expo Go
+let WebView: React.ComponentType<any> | null = null;
+try {
+  WebView = require('react-native-webview').WebView;
+} catch {
+  // expo go or missing native module
+}
 
 const EMPTY_METADATA: SessionMetadata = {};
 
@@ -56,6 +63,17 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
 }
 
 function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
+  if (!WebView) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <Text className="text-[#52525b] text-sm">webview requires standalone apk build</Text>
+        {canvas.url ? (
+          <Text className="text-[#3b82f6] text-xs mt-2" selectable>{canvas.url}</Text>
+        ) : null}
+      </View>
+    );
+  }
+
   const source = canvas.mode === 'html'
     ? { html: wrapHtml(canvas.html ?? '') }
     : { uri: canvas.url ?? '' };
