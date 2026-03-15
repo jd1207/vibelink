@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { colors } from '../constants/colors';
 
 export interface TreeItem {
   name: string;
@@ -15,7 +16,7 @@ interface TreeViewProps {
 
 export function TreeView({ items, onInteraction }: TreeViewProps) {
   return (
-    <View className="my-2 bg-[#18181b] rounded-lg p-3">
+    <View className="my-2 rounded-lg p-3" style={{ backgroundColor: colors.bg.surface }}>
       {items.map((item, i) => (
         <TreeNode
           key={`${item.name}-${i}`}
@@ -51,7 +52,7 @@ function TreeNode({ item, depth, path, onInteraction }: TreeNodeProps) {
 
   const prefix =
     item.type === 'folder' ? (expanded ? '\u25BE ' : '\u25B8 ') : '  ';
-  const nameColor = item.type === 'folder' ? 'text-[#60a5fa]' : 'text-[#a1a1aa]';
+  const nameColor = item.type === 'folder' ? colors.accent.light : colors.text.muted;
 
   return (
     <View>
@@ -60,7 +61,7 @@ function TreeNode({ item, depth, path, onInteraction }: TreeNodeProps) {
         style={{ paddingLeft }}
         className="py-1.5 active:opacity-70"
       >
-        <Text className={`font-mono text-xs ${nameColor}`}>
+        <Text className="font-mono text-xs" style={{ color: nameColor }}>
           {prefix}
           {item.name}
         </Text>

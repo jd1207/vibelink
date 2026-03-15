@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import type { SessionMetadata } from '../store/message-types';
+import { colors } from '../constants/colors';
 
 interface MetadataPanelProps {
   metadata: SessionMetadata;
@@ -13,7 +14,11 @@ export function MetadataPanel({ metadata }: MetadataPanelProps) {
   const totalTokens = inputTokens + outputTokens;
   const contextMax = getContextMax(metadata.model);
   const contextPercent = totalTokens > 0 ? Math.min((totalTokens / contextMax) * 100, 100) : 0;
-  const barColor = contextPercent > 80 ? '#ef4444' : contextPercent > 50 ? '#f59e0b' : '#3b82f6';
+  const barColor = contextPercent > 80
+    ? colors.status.error
+    : contextPercent > 50
+      ? colors.status.warningDark
+      : colors.accent.primary;
 
   const elapsed = useSessionDuration(metadata.sessionStartedAt);
 
@@ -21,27 +26,28 @@ export function MetadataPanel({ metadata }: MetadataPanelProps) {
     return (
       <Pressable
         onPress={() => setCollapsed(false)}
-        className="px-4 py-2 border-b border-[#27272a]"
+        className="px-4 py-2 border-b"
+        style={{ borderBottomColor: colors.border.default }}
       >
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2">
             {metadata.model ? (
-              <Text className="text-[#60a5fa] text-[10px] font-semibold">{metadata.model}</Text>
+              <Text className="text-[10px] font-semibold" style={{ color: colors.accent.light }}>{metadata.model}</Text>
             ) : null}
             {totalTokens > 0 ? (
-              <Text className="text-[#52525b] text-[10px]">{formatTokens(totalTokens)}</Text>
+              <Text className="text-[10px]" style={{ color: colors.text.dim }}>{formatTokens(totalTokens)}</Text>
             ) : null}
             {metadata.costUsd != null ? (
-              <Text className="text-[#52525b] text-[10px]">${metadata.costUsd.toFixed(3)}</Text>
+              <Text className="text-[10px]" style={{ color: colors.text.dim }}>${metadata.costUsd.toFixed(3)}</Text>
             ) : null}
             {elapsed ? (
-              <Text className="text-[#52525b] text-[10px]">{elapsed}</Text>
+              <Text className="text-[10px]" style={{ color: colors.text.dim }}>{elapsed}</Text>
             ) : null}
           </View>
-          <Text className="text-[#3b82f6] text-[10px]">expand</Text>
+          <Text className="text-[10px]" style={{ color: colors.accent.primary }}>expand</Text>
         </View>
         {totalTokens > 0 ? (
-          <View className="h-1 bg-[#27272a] rounded-full overflow-hidden mt-1.5">
+          <View className="h-1 rounded-full overflow-hidden mt-1.5" style={{ backgroundColor: colors.border.default }}>
             <View
               style={{ width: `${contextPercent}%`, backgroundColor: barColor }}
               className="h-full rounded-full"
@@ -53,42 +59,42 @@ export function MetadataPanel({ metadata }: MetadataPanelProps) {
   }
 
   return (
-    <View className="px-4 pt-3 pb-2 border-b border-[#27272a]">
+    <View className="px-4 pt-3 pb-2 border-b" style={{ borderBottomColor: colors.border.default }}>
       <View className="flex-row items-center gap-2 mb-2">
         {metadata.model ? (
-          <View className="bg-[#1e293b] rounded-md px-2 py-1">
-            <Text className="text-[#60a5fa] text-xs font-semibold">{metadata.model}</Text>
+          <View className="rounded-md px-2 py-1" style={{ backgroundColor: colors.bg.badge }}>
+            <Text className="text-xs font-semibold" style={{ color: colors.accent.light }}>{metadata.model}</Text>
           </View>
         ) : null}
         {metadata.cwd ? (
-          <Text className="text-[#52525b] text-xs flex-1" numberOfLines={1}>
+          <Text className="text-xs flex-1" numberOfLines={1} style={{ color: colors.text.dim }}>
             {metadata.cwd.split('/').slice(-2).join('/')}
           </Text>
         ) : null}
         <Pressable onPress={() => setCollapsed(true)} className="active:opacity-60">
-          <Text className="text-[#3b82f6] text-[10px]">collapse</Text>
+          <Text className="text-[10px]" style={{ color: colors.accent.primary }}>collapse</Text>
         </Pressable>
       </View>
 
       {totalTokens > 0 ? (
         <View className="mb-2">
           <View className="flex-row justify-between mb-1">
-            <Text className="text-[#71717a] text-[10px]">context window</Text>
-            <Text className="text-[#71717a] text-[10px]">
+            <Text className="text-[10px]" style={{ color: colors.text.subtle }}>context window</Text>
+            <Text className="text-[10px]" style={{ color: colors.text.subtle }}>
               {formatTokens(totalTokens)} / {formatTokens(contextMax)}
             </Text>
           </View>
-          <View className="h-1.5 bg-[#27272a] rounded-full overflow-hidden">
+          <View className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: colors.border.default }}>
             <View
               style={{ width: `${contextPercent}%`, backgroundColor: barColor }}
               className="h-full rounded-full"
             />
           </View>
           <View className="flex-row gap-3 mt-1">
-            <Text className="text-[#52525b] text-[10px]">
+            <Text className="text-[10px]" style={{ color: colors.text.dim }}>
               in: {formatTokens(inputTokens)}
             </Text>
-            <Text className="text-[#52525b] text-[10px]">
+            <Text className="text-[10px]" style={{ color: colors.text.dim }}>
               out: {formatTokens(outputTokens)}
             </Text>
           </View>
@@ -112,11 +118,11 @@ export function MetadataPanel({ metadata }: MetadataPanelProps) {
 
       {metadata.mcpServers && metadata.mcpServers.length > 0 ? (
         <View className="mt-2">
-          <Text className="text-[#71717a] text-[10px] mb-1">mcp servers</Text>
+          <Text className="text-[10px] mb-1" style={{ color: colors.text.subtle }}>mcp servers</Text>
           <View className="flex-row flex-wrap gap-1">
             {metadata.mcpServers.map((name) => (
-              <View key={name} className="bg-[#18181b] rounded px-2 py-0.5">
-                <Text className="text-[#a1a1aa] text-[10px]">{name}</Text>
+              <View key={name} className="rounded px-2 py-0.5" style={{ backgroundColor: colors.bg.surface }}>
+                <Text className="text-[10px]" style={{ color: colors.text.muted }}>{name}</Text>
               </View>
             ))}
           </View>
@@ -158,21 +164,21 @@ function ToolsSection({ tools }: { tools?: string[] }) {
   return (
     <View className="mt-2">
       <Pressable onPress={() => setExpanded(!expanded)} className="flex-row items-center gap-1">
-        <Text className="text-[#71717a] text-[10px]">
+        <Text className="text-[10px]" style={{ color: colors.text.subtle }}>
           tools ({tools.length})
         </Text>
-        <Text className="text-[#52525b] text-[10px]">{expanded ? 'hide' : 'show'}</Text>
+        <Text className="text-[10px]" style={{ color: colors.text.dim }}>{expanded ? 'hide' : 'show'}</Text>
       </Pressable>
 
       {expanded ? (
         <View className="mt-1">
           {builtIn.length > 0 ? (
             <View className="mb-1.5">
-              <Text className="text-[#52525b] text-[10px] mb-0.5">built-in</Text>
+              <Text className="text-[10px] mb-0.5" style={{ color: colors.text.dim }}>built-in</Text>
               <View className="flex-row flex-wrap gap-1">
                 {builtIn.map((name) => (
-                  <View key={name} className="bg-[#18181b] rounded px-2 py-0.5">
-                    <Text className="text-[#71717a] text-[10px]">{name}</Text>
+                  <View key={name} className="rounded px-2 py-0.5" style={{ backgroundColor: colors.bg.surface }}>
+                    <Text className="text-[10px]" style={{ color: colors.text.subtle }}>{name}</Text>
                   </View>
                 ))}
               </View>
@@ -181,11 +187,11 @@ function ToolsSection({ tools }: { tools?: string[] }) {
 
           {mcpServerNames.map((server) => (
             <View key={server} className="mb-1.5">
-              <Text className="text-[#52525b] text-[10px] mb-0.5">{server}</Text>
+              <Text className="text-[10px] mb-0.5" style={{ color: colors.text.dim }}>{server}</Text>
               <View className="flex-row flex-wrap gap-1">
                 {mcpGroups[server].map((name) => (
-                  <View key={name} className="bg-[#18181b] rounded px-2 py-0.5">
-                    <Text className="text-[#a1a1aa] text-[10px]">{name}</Text>
+                  <View key={name} className="rounded px-2 py-0.5" style={{ backgroundColor: colors.bg.surface }}>
+                    <Text className="text-[10px]" style={{ color: colors.text.muted }}>{name}</Text>
                   </View>
                 ))}
               </View>
@@ -200,8 +206,8 @@ function ToolsSection({ tools }: { tools?: string[] }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View>
-      <Text className="text-[#fafafa] text-xs font-semibold">{value}</Text>
-      <Text className="text-[#52525b] text-[10px]">{label}</Text>
+      <Text className="text-xs font-semibold" style={{ color: colors.text.primary }}>{value}</Text>
+      <Text className="text-[10px]" style={{ color: colors.text.dim }}>{label}</Text>
     </View>
   );
 }

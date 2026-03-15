@@ -6,6 +6,7 @@ import { FormRenderer } from './FormRenderer';
 import { TreeView, TreeItem } from './TreeView';
 import { ProgressBar } from './ProgressBar';
 import { MarkdownContent } from './MarkdownRenderer';
+import { colors } from '../constants/colors';
 
 interface DynamicComponent {
   id: string;
@@ -94,12 +95,11 @@ export const DynamicRenderer = React.memo(function DynamicRenderer({ component, 
   }
 });
 
-// placeholder until a real charting lib is added
 function ChartPlaceholder({ data }: { data: Record<string, unknown> }) {
   return (
-    <View className="my-2 bg-[#18181b] rounded-lg p-4">
-      <Text className="text-[#71717a] text-xs mb-1">chart (placeholder)</Text>
-      <Text className="text-[#a1a1aa] text-xs font-mono" selectable>
+    <View className="my-2 rounded-lg p-4" style={{ backgroundColor: colors.bg.surface }}>
+      <Text className="text-xs mb-1" style={{ color: colors.text.subtle }}>chart (placeholder)</Text>
+      <Text className="text-xs font-mono" selectable style={{ color: colors.text.muted }}>
         {JSON.stringify(data, null, 2)}
       </Text>
     </View>
@@ -110,8 +110,12 @@ function ImageGallery({ images }: { images: string[] }) {
   return (
     <View className="my-2 flex-row flex-wrap gap-2">
       {images.map((uri, i) => (
-        <View key={i} className="bg-[#18181b] rounded-lg p-2 w-24 h-24 items-center justify-center">
-          <Text className="text-[#52525b] text-[10px] text-center" numberOfLines={2}>
+        <View
+          key={i}
+          className="rounded-lg p-2 w-24 h-24 items-center justify-center"
+          style={{ backgroundColor: colors.bg.surface }}
+        >
+          <Text className="text-[10px] text-center" numberOfLines={2} style={{ color: colors.text.dim }}>
             {uri}
           </Text>
         </View>
@@ -122,9 +126,9 @@ function ImageGallery({ images }: { images: string[] }) {
 
 function JsonFallback({ data }: { data: unknown }) {
   return (
-    <View className="my-2 bg-[#111] rounded-lg p-3">
-      <Text className="text-[#71717a] text-[10px] mb-1">unknown component</Text>
-      <Text className="text-[#a1a1aa] text-xs font-mono" selectable>
+    <View className="my-2 rounded-lg p-3" style={{ backgroundColor: colors.code.background }}>
+      <Text className="text-[10px] mb-1" style={{ color: colors.text.subtle }}>unknown component</Text>
+      <Text className="text-xs font-mono" selectable style={{ color: colors.text.muted }}>
         {JSON.stringify(data, null, 2)}
       </Text>
     </View>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated } from 'react-native';
 import { ChatMessage } from '../store/messages';
 import { MarkdownContent } from './MarkdownRenderer';
+import { colors } from '../constants/colors';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -14,7 +15,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
   if (isSystem) {
     return (
       <View className="px-4 py-2 items-center">
-        <Text className="text-[#71717a] text-xs">{message.content}</Text>
+        <Text className="text-xs" style={{ color: colors.text.subtle }}>{message.content}</Text>
       </View>
     );
   }
@@ -24,14 +25,13 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
   return (
     <View className={`px-4 py-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
       <View
-        className={`rounded-2xl px-4 py-2.5 max-w-[85%] ${
-          isUser ? 'bg-[#3b82f6]' : 'bg-[#18181b]'
-        }`}
+        className="rounded-2xl px-4 py-2.5 max-w-[85%]"
+        style={{ backgroundColor: isUser ? colors.accent.primary : colors.bg.surface }}
       >
         <MarkdownContent text={message.content} isUser={isUser} />
         {message.isStreaming ? <AnimatedDots /> : null}
       </View>
-      <Text className="text-[#52525b] text-[10px] mt-1 px-1">{timeStr}</Text>
+      <Text className="text-[10px] mt-1 px-1" style={{ color: colors.text.dim }}>{timeStr}</Text>
     </View>
   );
 });
@@ -63,7 +63,7 @@ function AnimatedDots() {
     return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, [dot1, dot2, dot3]);
 
-  const dotStyle = { width: 5, height: 5, borderRadius: 3, backgroundColor: '#3b82f6', opacity: 0.6 };
+  const dotStyle = { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accent.light, opacity: 0.6 };
 
   return (
     <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, paddingVertical: 2 }}>

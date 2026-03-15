@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { colors } from '../constants/colors';
 
 interface ProgressBarProps {
   value: number;
@@ -13,15 +14,15 @@ export function ProgressBar({ value, max = 100, label }: ProgressBarProps) {
   return (
     <View className="my-2">
       {label ? (
-        <Text className="text-[#a1a1aa] text-xs mb-1.5">{label}</Text>
+        <Text className="text-xs mb-1.5" style={{ color: colors.text.muted }}>{label}</Text>
       ) : null}
-      <View className="bg-[#27272a] rounded-full h-3 overflow-hidden">
+      <View className="rounded-full h-3 overflow-hidden" style={{ backgroundColor: colors.border.default }}>
         <View
-          className="bg-[#3b82f6] h-full rounded-full"
-          style={{ width: `${percent}%` }}
+          className="h-full rounded-full"
+          style={{ width: `${percent}%`, backgroundColor: colors.accent.primary }}
         />
       </View>
-      <Text className="text-[#71717a] text-[10px] mt-1">
+      <Text className="text-[10px] mt-1" style={{ color: colors.text.subtle }}>
         {Math.round(percent)}%
       </Text>
     </View>

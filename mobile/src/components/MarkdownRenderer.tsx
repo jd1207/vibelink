@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { colors } from '../constants/colors';
 
 interface MarkdownContentProps {
   text: string;
@@ -9,7 +10,8 @@ interface MarkdownContentProps {
 }
 
 export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
-  const textColor = isUser ? 'text-white' : 'text-[#fafafa]';
+  const textColor = isUser ? 'text-white' : undefined;
+  const textStyle = isUser ? undefined : { color: colors.text.primary };
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
@@ -41,7 +43,7 @@ export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
       const level = headerMatch[1].length;
       const sizes = ['text-lg', 'text-base', 'text-sm'];
       elements.push(
-        <Text key={i} className={`${textColor} ${sizes[level - 1]} font-bold mt-1`}>
+        <Text key={i} className={`${textColor ?? ''} ${sizes[level - 1]} font-bold mt-1`} style={textStyle}>
           {headerMatch[2]}
         </Text>
       );
@@ -51,8 +53,8 @@ export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
     if (line.match(/^[-*]\s+/)) {
       elements.push(
         <View key={i} className="flex-row mt-0.5">
-          <Text className={`${textColor} text-sm`}>  {'\u2022'} </Text>
-          <Text className={`${textColor} text-sm flex-1`}>
+          <Text className={`${textColor ?? ''} text-sm`} style={textStyle}>  {'\u2022'} </Text>
+          <Text className={`${textColor ?? ''} text-sm flex-1`} style={textStyle}>
             {renderInline(line.replace(/^[-*]\s+/, ''), isUser)}
           </Text>
         </View>
@@ -64,7 +66,7 @@ export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
       elements.push(<View key={i} className="h-2" />);
     } else {
       elements.push(
-        <Text key={i} className={`${textColor} text-sm`}>
+        <Text key={i} className={`${textColor ?? ''} text-sm`} style={textStyle}>
           {renderInline(line, isUser)}
         </Text>
       );
@@ -80,7 +82,10 @@ export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
 
 function renderInline(text: string, isUser: boolean): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  const codeColor = isUser ? 'text-blue-100' : 'text-[#a5b4fc]';
+  const codeStyle = isUser ? undefined : { color: colors.code.inline };
+  const codeClassName = isUser ? 'font-mono text-orange-100 bg-black/20 text-xs' : 'font-mono bg-black/20 text-xs';
+  const linkStyle = isUser ? undefined : { color: colors.accent.light };
+  const linkClassName = isUser ? 'text-orange-200 underline' : 'underline';
   const regex = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
   let lastIndex = 0;
   let match;
@@ -91,14 +96,18 @@ function renderInline(text: string, isUser: boolean): React.ReactNode[] {
     }
     if (match[1]) {
       parts.push(
-        <Text key={match.index} className={`font-mono ${codeColor} bg-black/20 text-xs`}>
+        <Text key={match.index} className={codeClassName} style={codeStyle}>
           {match[1]}
         </Text>
       );
     } else if (match[2]) {
       parts.push(<Text key={match.index} className="font-bold">{match[2]}</Text>);
     } else if (match[3]) {
-      parts.push(<Text key={match.index} className="text-blue-300 underline">{match[3]}</Text>);
+      parts.push(
+        <Text key={match.index} className={linkClassName} style={linkStyle}>
+          {match[3]}
+        </Text>
+      );
     }
     lastIndex = match.index + match[0].length;
   }
@@ -118,10 +127,10 @@ function CodeBlock({ code }: { code: string }) {
 
   return (
     <Pressable onLongPress={handleCopy} className="bg-black/40 rounded-lg p-3 my-1">
-      <Text className="font-mono text-xs text-[#e2e8f0] leading-4" selectable>
+      <Text className="font-mono text-xs leading-4" selectable style={{ color: colors.code.text }}>
         {code}
       </Text>
-      <Text className="text-[#52525b] text-[10px] mt-1">long press to copy</Text>
+      <Text className="text-[10px] mt-1" style={{ color: colors.text.dim }}>long press to copy</Text>
     </Pressable>
   );
 }

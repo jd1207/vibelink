@@ -3,6 +3,7 @@ import { View, TextInput, Pressable, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useDraft } from '../hooks/useDraft';
 import { useMessageStore } from '../store/messages';
+import { colors } from '../constants/colors';
 
 interface InputBarProps {
   sessionId: string;
@@ -35,11 +36,19 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
   }, [draft, isStreaming, onSend, clearDraft, sessionId]);
 
   return (
-    <View className="flex-row items-end gap-2 px-4 py-3 bg-[#0a0a0a] border-t border-[#27272a]">
+    <View
+      className="flex-row items-end gap-2 px-4 py-3 border-t"
+      style={{ backgroundColor: colors.bg.primary, borderTopColor: colors.border.default }}
+    >
       <TextInput
-        className="flex-1 bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 text-[#fafafa] text-base max-h-32"
+        className="flex-1 rounded-xl px-4 py-3 text-base max-h-32 border"
+        style={{
+          backgroundColor: colors.bg.surface,
+          borderColor: colors.border.default,
+          color: colors.text.primary,
+        }}
         placeholder="message claude..."
-        placeholderTextColor="#52525b"
+        placeholderTextColor={colors.text.dim}
         value={draft}
         onChangeText={setDraft}
         autoFocus={false}
@@ -50,9 +59,13 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
       <Pressable
         onPress={handleSend}
         disabled={!canSend}
-        className={`rounded-xl px-5 py-3 ${canSend ? 'bg-[#3b82f6] active:opacity-80' : 'bg-[#27272a]'}`}
+        className="rounded-xl px-5 py-3 active:opacity-80"
+        style={{ backgroundColor: canSend ? colors.accent.primary : colors.border.subtle }}
       >
-        <Text className={`font-semibold text-base ${canSend ? 'text-white' : 'text-[#52525b]'}`}>
+        <Text
+          className="font-semibold text-base"
+          style={{ color: canSend ? colors.text.primary : colors.text.dim }}
+        >
           send
         </Text>
       </Pressable>

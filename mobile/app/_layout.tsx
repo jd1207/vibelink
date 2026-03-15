@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { useConnectionStore } from '../src/store/connection';
+import { colors } from '../src/constants/colors';
 
 // keyboard-controller requires native modules — only available in standalone APK builds, not Expo Go
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -108,10 +109,10 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#18181b' },
-          headerTintColor: '#fafafa',
-          headerTitleStyle: { color: '#fafafa' },
-          contentStyle: { backgroundColor: '#0a0a0a' },
+          headerStyle: { backgroundColor: colors.bg.surface },
+          headerTintColor: colors.text.primary,
+          headerTitleStyle: { color: colors.text.primary },
+          contentStyle: { backgroundColor: colors.bg.primary },
         }}
       />
     </>

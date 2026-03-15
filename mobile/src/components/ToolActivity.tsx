@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { ContentBlock } from '../store/messages';
 import { formatToolName, formatToolParam } from './tool-format';
+import { colors } from '../constants/colors';
 
 interface ToolActivityProps {
   block: ContentBlock;
@@ -23,28 +24,28 @@ const ToolActivity = React.memo(function ToolActivity({ block }: ToolActivityPro
       <Pressable onPress={toggle} className="flex-row items-center gap-2">
         <View
           className={`flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${
-            isComplete ? 'bg-emerald-900/30' : 'bg-[#27272a]'
+            isComplete ? 'bg-emerald-900/30' : ''
           }`}
-          style={{ maxWidth: '85%' }}
+          style={isComplete ? undefined : { backgroundColor: colors.border.subtle }}
         >
           {isComplete ? (
-            <Text style={{ color: '#34d399', fontSize: 14 }}>✓</Text>
+            <Text style={{ color: colors.status.success, fontSize: 14 }}>✓</Text>
           ) : (
-            <ActivityIndicator size="small" color="#a1a1aa" />
+            <ActivityIndicator size="small" color={colors.text.muted} />
           )}
-          <Text className="text-[#a1a1aa] text-xs font-medium">{friendlyName}</Text>
+          <Text className="text-xs font-medium" style={{ color: colors.text.muted }}>{friendlyName}</Text>
           {paramLine ? (
-            <Text className="text-[#52525b] text-xs" numberOfLines={1}>{paramLine}</Text>
+            <Text className="text-xs" numberOfLines={1} style={{ color: colors.text.dim }}>{paramLine}</Text>
           ) : null}
         </View>
       </Pressable>
 
       {expanded ? (
-        <View className="bg-[#18181b] rounded-lg p-3 mt-1.5 ml-2">
+        <View className="rounded-lg p-3 mt-1.5 ml-2" style={{ backgroundColor: colors.bg.surface }}>
           {block.input != null ? (
             <View className="mb-2">
-              <Text className="text-[#71717a] text-[10px] mb-1">input</Text>
-              <Text className="font-mono text-xs text-[#a1a1aa]" selectable>
+              <Text className="text-[10px] mb-1" style={{ color: colors.text.subtle }}>input</Text>
+              <Text className="font-mono text-xs" selectable style={{ color: colors.text.muted }}>
                 {typeof block.input === 'string'
                   ? block.input
                   : JSON.stringify(block.input, null, 2)}
@@ -53,8 +54,8 @@ const ToolActivity = React.memo(function ToolActivity({ block }: ToolActivityPro
           ) : null}
           {block.content ? (
             <View>
-              <Text className="text-[#71717a] text-[10px] mb-1">output</Text>
-              <Text className="font-mono text-xs text-[#a1a1aa]" selectable numberOfLines={20}>
+              <Text className="text-[10px] mb-1" style={{ color: colors.text.subtle }}>output</Text>
+              <Text className="font-mono text-xs" selectable numberOfLines={20} style={{ color: colors.text.muted }}>
                 {block.content}
               </Text>
             </View>
