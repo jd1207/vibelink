@@ -155,7 +155,7 @@ export default function SetupScreen() {
         <Text className="text-[#a1a1aa] text-sm mb-1.5">bridge url</Text>
         <TextInput
           className="bg-[#18181b] border border-[#27272a] rounded-xl px-4 py-3 text-[#fafafa] text-base mb-1"
-          placeholder="steamdeck:3400"
+          placeholder="hostname:3400"
           placeholderTextColor="#52525b"
           value={bridgeUrl}
           onChangeText={setBridgeUrl}
