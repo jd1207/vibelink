@@ -286,6 +286,69 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   return sessions;
 }
 
+// read conversation messages from a session JSONL for hydrating the phone UI
+export interface HistoryMessage {
+  type: "assistant" | "user";
+  message: Record<string, unknown>;
+  timestamp: string;
+  sessionId: string;
+}
+
+export async function readSessionHistory(sessionId: string): Promise<HistoryMessage[]> {
+  const projectsDir = join(homedir(), ".claude", "projects");
+  const messages: HistoryMessage[] = [];
+
+  let projectDirs: string[];
+  try {
+    projectDirs = await readdir(projectsDir);
+  } catch {
+    return [];
+  }
+
+  for (const dirName of projectDirs) {
+    const dirPath = join(projectsDir, dirName);
+    const jsonlPath = join(dirPath, `${sessionId}.jsonl`);
+
+    try {
+      await stat(jsonlPath);
+    } catch {
+      continue;
+    }
+
+    // found it — read the full file for history
+    let content: string;
+    try {
+      content = await readFile(jsonlPath, "utf-8");
+    } catch {
+      return [];
+    }
+
+    for (const line of content.split("\n")) {
+      if (!line) continue;
+      let entry: Record<string, unknown>;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+
+      const type = entry.type as string;
+      if ((type === "user" || type === "assistant") && entry.message) {
+        messages.push({
+          type: type as "user" | "assistant",
+          message: entry.message as Record<string, unknown>,
+          timestamp: (entry.timestamp as string) ?? "",
+          sessionId,
+        });
+      }
+    }
+
+    return messages;
+  }
+
+  return [];
+}
+
 // delete a session's JSONL file (and companion directory if it exists)
 export async function deleteClaudeSession(sessionId: string): Promise<boolean> {
   const projectsDir = join(homedir(), ".claude", "projects");

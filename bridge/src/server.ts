@@ -10,7 +10,7 @@ import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
 import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
-import { scanClaudeSessions, deleteClaudeSession } from "./session-scanner.js";
+import { scanClaudeSessions, deleteClaudeSession, readSessionHistory } from "./session-scanner.js";
 import { execSync } from "child_process";
 
 // get tailscale IP for rewriting localhost URLs so phone can reach dev servers
@@ -225,7 +225,7 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     res.json(sessionManager.list());
   });
 
-  expressApp.post("/sessions", (req, res) => {
+  expressApp.post("/sessions", async (req, res) => {
     const { projectPath, resumeSessionId, skipPermissions } = req.body as {
       projectPath?: string;
       resumeSessionId?: string;
@@ -236,6 +236,23 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       return;
     }
     const session = sessionManager.create(projectPath, resumeSessionId, skipPermissions);
+
+    // hydrate the event buffer with historical messages so the phone
+    // sees the conversation when connecting via WebSocket
+    if (resumeSessionId) {
+      try {
+        const history = await readSessionHistory(resumeSessionId);
+        for (const msg of history) {
+          session.buffer.push({
+            type: "claude_event",
+            event: msg,
+          });
+        }
+        console.log(`[sessions] hydrated ${history.length} messages from ${resumeSessionId.slice(0, 8)}`);
+      } catch (err) {
+        console.error(`[sessions] failed to hydrate history:`, err);
+      }
+    }
 
     const captureManager = new CaptureManager();
     session.captureManager = captureManager;
