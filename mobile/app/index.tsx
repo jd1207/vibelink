@@ -323,10 +323,30 @@ export default function SessionsScreen() {
     [vibelinkSessions, createVibelinkSession],
   );
 
+  // merge vibelink-managed sessions that aren't in the scanner results
+  // (e.g. just-created sessions whose JSONL/PID haven't been written yet)
+  const scannerIds = new Set(claudeSessions.map((s) => s.sessionId));
+  const vlOnlySessions: ClaudeSession[] = Object.values(vibelinkSessions)
+    .filter((vl) => vl.alive && !scannerIds.has(vl.id))
+    .map((vl) => ({
+      sessionId: vl.id,
+      projectPath: vl.projectPath,
+      projectName: vl.projectName,
+      lastActivity: vl.createdAt,
+      model: null,
+      gitBranch: null,
+      alive: true,
+      recentMessages: vl.lastMessage
+        ? [{ role: 'user' as const, text: vl.lastMessage, timestamp: vl.createdAt }]
+        : [],
+    }));
+
+  const allSessions = [...claudeSessions, ...vlOnlySessions];
+
   // group sessions into sections
   const sections: SectionData[] = [];
-  const alive = claudeSessions.filter((s) => s.alive);
-  const recent = claudeSessions.filter((s) => !s.alive).slice(0, 20);
+  const alive = allSessions.filter((s) => s.alive);
+  const recent = allSessions.filter((s) => !s.alive).slice(0, 20);
 
   if (alive.length > 0) {
     sections.push({ title: 'active sessions', data: alive });
