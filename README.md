@@ -9,7 +9,7 @@
 [![React Native](https://img.shields.io/badge/react_native-expo_54-blueviolet.svg)](https://expo.dev)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-blue.svg)](https://www.typescriptlang.org)
 
-[Quick Start](#quick-start) · [Roadmap](#roadmap) · [Dashboard](#dashboard) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) · [Roadmap](#roadmap) · [Dashboard](#dashboard) · [Contributing](#contributing)
 
 </div>
 
@@ -36,6 +36,164 @@ The project is open source and designed for developers who already use Claude Co
 | Permission control | :white_check_mark: | :white_check_mark: | |
 | Multi-session | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | Works offline | :white_check_mark: | | :white_check_mark: |
+
+## Quick Start
+
+### 1. Get the app on your phone
+
+**Easiest (Android):** Download the latest APK from the
+[Releases page](https://github.com/jd1207/vibelink/releases/latest)
+and install it. Enable "install from unknown sources" if prompted.
+
+**Build it yourself:** See [Building from Source](#building-from-source).
+
+### 2. Set up your computer
+
+The fastest way: tell your Claude Code to do it.
+
+> Set up VibeLink from github.com/jd1207/vibelink
+
+Claude will clone the repo, build the server, register the MCP tools and permission hook, and give you connection info.
+
+Or set up manually:
+
+```bash
+git clone https://github.com/jd1207/vibelink && cd vibelink
+./setup.sh          # Mac/Linux
+# or
+./setup.ps1         # Windows (requires WSL2 for bridge)
+```
+
+The setup script:
+1. Checks prerequisites (claude, node, tailscale)
+2. Builds Bridge Server and MCP Server
+3. Registers the MCP server and permission hook with Claude Code
+4. Generates auth token in `bridge/.env`
+5. Optionally installs a background service (systemd on Linux, launchd on macOS)
+6. Prints connection info and a QR code
+
+### 3. Connect your phone
+
+The setup script shows a QR code. Open VibeLink on your phone, tap
+"scan qr code", point at the screen. Done.
+
+**Manual entry:** If QR scanning doesn't work, type the bridge URL and
+auth token shown by the setup script into the app's setup screen.
+
+**Important:** Both your phone and computer need
+[Tailscale](https://tailscale.com) installed and signed into the same
+account. This creates a private encrypted connection between them.
+
+## Daily Use
+
+```bash
+vibelink start      # start the bridge as a background service
+vibelink stop       # graceful shutdown
+vibelink status     # check running sessions and connected clients
+```
+
+Once the bridge is running, open the app on your phone. No terminal needed for daily use.
+
+## Building from Source
+
+### Android
+
+**Prerequisites:** Node.js 22+, JDK 17+, Android SDK
+
+```bash
+cd mobile && npm install
+npx expo prebuild --platform android --clean
+
+export JAVA_HOME=/path/to/jdk-17
+export ANDROID_HOME=/path/to/android-sdk
+cd android && ./gradlew assembleRelease
+```
+
+APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+
+Install via browser download, `adb install`, or local HTTP server.
+
+### iOS (requires Mac + Xcode)
+
+```bash
+cd mobile && npm install
+npx expo prebuild --platform ios --clean
+npx expo run:ios --device --configuration Release
+```
+
+### Low-memory systems
+
+If Gradle crashes (e.g., Steam Deck with 16GB shared RAM), add to
+`mobile/android/gradle.properties`:
+
+```
+org.gradle.jvmargs=-Xmx1536m
+```
+
+And build with: `./gradlew assembleRelease --no-daemon`
+
+## Architecture
+
+```
+Phone (React Native)
+  |
+  | WebSocket + REST
+  | (over Tailscale)
+  v
+Bridge Server (Node.js)
+  |               |
+  | stdin/stdout   | Unix socket
+  | NDJSON         | IPC
+  v               v
+Claude CLI     MCP Server
+(subprocess)   (render_ui, tabs,
+               request_input)
+```
+
+## Requirements
+
+- **Node.js 22+** — bridge and MCP server
+- **Claude Code CLI** — installed and authenticated
+- **Tailscale** — on workstation + phone (same account)
+- **Java 17+** — only for building Android APK
+
+## Dashboard
+
+Open **http://localhost:3400/dashboard** in your browser to see:
+- Active sessions with process status
+- Connected clients
+- Embedded chat (synced with your phone)
+- Terminal view of raw Claude events
+- Session management (end sessions, end all)
+
+## Security and Privacy
+
+- **Self-hosted**: everything runs on your workstation
+- **Tailscale**: E2E encrypted via WireGuard
+- **Token auth**: 256-bit token on every request
+- **No telemetry**: no analytics, no tracking, no external calls
+- **Local APK**: built and signed on your machine
+
+See [SECURITY.md](SECURITY.md) for details.
+
+## Project Structure
+
+```
+vibelink/
+  bridge/         Bridge Server (Node.js + TypeScript)
+  mcp-server/     MCP Server for Claude Code
+  mobile/         React Native App (Expo + TypeScript)
+  hooks/          Claude Code permission hook
+  scripts/        QR code generator, utilities
+  setup.sh        Setup script (Mac/Linux)
+  setup.ps1       Setup script (Windows)
+  vibelink        CLI wrapper (start/stop/status)
+```
+
+See package READMEs for internals:
+- [bridge/README.md](bridge/README.md)
+- [mcp-server/README.md](mcp-server/README.md)
+- [mobile/README.md](mobile/README.md)
 
 ## Roadmap
 
@@ -70,118 +228,26 @@ The project is open source and designed for developers who already use Claude Co
 - [ ] **Push notifications** -- get notified when Claude finishes a long task
 - [ ] **GitHub integration** -- clone repos directly from the app
 - [ ] **iOS build guide** -- contributor documentation for building on Mac
-
-## Architecture
-
-```
-Phone (React Native)
-  |
-  | WebSocket + REST
-  | (over Tailscale)
-  v
-Bridge Server (Node.js)
-  |               |
-  | stdin/stdout   | Unix socket
-  | NDJSON         | IPC
-  v               v
-Claude CLI     MCP Server
-(subprocess)   (render_ui, tabs,
-               request_input)
-```
-
-## Requirements
-
-- **Node.js 22+** — bridge and MCP server
-- **Claude Code CLI** — installed and authenticated
-- **Tailscale** — on workstation + phone (same account)
-- **Java 17+** — only for building Android APK
-
-## Quick Start
-
-```bash
-git clone https://github.com/jd1207/vibelink && cd vibelink
-./setup.sh
-```
-
-The setup script:
-1. Checks prerequisites (claude, node, tailscale)
-2. Builds Bridge Server and MCP Server
-3. Registers the MCP server with Claude Code
-4. Generates auth token in `bridge/.env`
-5. Optionally installs a systemd service for always-on access
-6. Optionally builds the Android APK
-7. Prints your connection info and instructions
-
-## Daily Use
-
-```bash
-vibelink start      # start the bridge as a background service
-vibelink stop       # graceful shutdown
-vibelink status     # check running sessions and connected clients
-```
-
-Once the bridge is running, open the app on your phone. No terminal needed for daily use.
-
-## Dashboard
-
-Open **http://localhost:3400/dashboard** in your browser to see:
-- Active sessions with process status
-- Connected clients
-- Embedded chat (synced with your phone)
-- Terminal view of raw Claude events
-- Session management (end sessions, end all)
-
-## Android Setup
-
-```bash
-cd mobile && npm install
-npx expo prebuild --platform android
-cd android && ./gradlew assembleRelease
-```
-
-APK output: `android/app/build/outputs/apk/release/`
-
-Install via USB (`adb install`), QR code over Tailscale, or send the file directly.
-
-## iOS Setup
-
-The codebase is fully cross-platform. iOS builds require a Mac with Xcode:
-
-```bash
-cd mobile && npm install
-npx expo prebuild --platform ios
-npx expo run:ios --device --configuration Release
-```
-
-## Security and Privacy
-
-- **Self-hosted**: everything runs on your workstation
-- **Tailscale**: E2E encrypted via WireGuard
-- **Token auth**: 256-bit token on every request
-- **No telemetry**: no analytics, no tracking, no external calls
-- **Local APK**: built and signed on your machine
-
-See [SECURITY.md](SECURITY.md) for details.
-
-## Project Structure
-
-```
-vibelink/
-  bridge/         Bridge Server (Node.js + TypeScript)
-  mcp-server/     MCP Server for Claude Code
-  mobile/         React Native App (Expo + TypeScript)
-  setup.sh        One-command setup script
-  vibelink        CLI wrapper (start/stop/status)
-```
-
-See package READMEs for internals:
-- [bridge/README.md](bridge/README.md)
-- [mcp-server/README.md](mcp-server/README.md)
-- [mobile/README.md](mobile/README.md)
+- [ ] **App Store / Play Store** -- publish to stores for one-tap install (no sideloading)
+- [ ] **npx vibelink-setup** -- cross-platform setup wizard, no git clone needed
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions and code style.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code style and contribution guidelines.
+
+### Dev Client (hot-reload development)
+
+Build a debug APK once, then iterate with live reload:
+
+```bash
+cd mobile && npm install
+npx expo prebuild --platform android --clean
+cd android && ./gradlew assembleDebug
+# install debug APK on phone, then:
+npx expo start --dev-client
+```
+
+Code changes appear on the phone instantly without rebuilding.
 
 ## License
 
