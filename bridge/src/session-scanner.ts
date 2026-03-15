@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, open } from "fs/promises";
+import { readdir, readFile, stat, open, unlink, rmdir } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -284,4 +284,49 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   return sessions;
+}
+
+// delete a session's JSONL file (and companion directory if it exists)
+export async function deleteClaudeSession(sessionId: string): Promise<boolean> {
+  const projectsDir = join(homedir(), ".claude", "projects");
+
+  let projectDirs: string[];
+  try {
+    projectDirs = await readdir(projectsDir);
+  } catch {
+    return false;
+  }
+
+  for (const dirName of projectDirs) {
+    const dirPath = join(projectsDir, dirName);
+    const jsonlPath = join(dirPath, `${sessionId}.jsonl`);
+
+    try {
+      await stat(jsonlPath);
+    } catch {
+      continue;
+    }
+
+    // found it — delete the JSONL and any companion directory
+    await unlink(jsonlPath);
+
+    const companionDir = join(dirPath, sessionId);
+    try {
+      const s = await stat(companionDir);
+      if (s.isDirectory()) {
+        // remove companion dir contents then dir itself
+        const files = await readdir(companionDir);
+        for (const f of files) {
+          await unlink(join(companionDir, f)).catch(() => {});
+        }
+        await rmdir(companionDir).catch(() => {});
+      }
+    } catch {
+      // no companion dir
+    }
+
+    return true;
+  }
+
+  return false;
 }

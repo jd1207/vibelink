@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   SectionList,
   ActivityIndicator,
   Alert,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -66,80 +68,130 @@ async function fetchClaudeSessions(): Promise<ClaudeSession[]> {
   return response.json();
 }
 
+const DELETE_THRESHOLD = -80;
+
 interface SessionRowProps {
   session: ClaudeSession;
   onPress: () => void;
+  onDelete: () => void;
   vibelinkSession?: Session;
 }
 
-function SessionRow({ session, onPress, vibelinkSession }: SessionRowProps) {
+function SessionRow({ session, onPress, onDelete, vibelinkSession }: SessionRowProps) {
   const modelLabel = formatModel(session.model);
   const lastUserMsg = [...session.recentMessages]
     .reverse()
     .find((m) => m.role === 'user');
 
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 10 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dx < 0) {
+          translateX.setValue(Math.max(gesture.dx, -120));
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dx < DELETE_THRESHOLD) {
+          Alert.alert(
+            'delete session',
+            `remove "${session.projectName}" from history?`,
+            [
+              {
+                text: 'cancel',
+                style: 'cancel',
+                onPress: () =>
+                  Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(),
+              },
+              {
+                text: 'delete',
+                style: 'destructive',
+                onPress: onDelete,
+              },
+            ],
+          );
+        } else {
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
+
   return (
-    <Pressable
-      onPress={onPress}
-      className="bg-[#18181b] border border-[#27272a] rounded-xl mx-4 mb-3 p-4 active:opacity-70"
-    >
-      {/* top row: project name + time */}
-      <View className="flex-row items-center justify-between mb-1">
-        <Text
-          className="text-[#fafafa] font-medium text-base flex-1"
-          numberOfLines={1}
-        >
-          {session.projectName}
-        </Text>
-        <Text className="text-[#a1a1aa] text-xs ml-2">
-          {formatTime(session.lastActivity)}
-        </Text>
+    <View className="mx-4 mb-3">
+      {/* delete background */}
+      <View className="absolute inset-0 bg-red-600 rounded-xl flex-row items-center justify-end px-5">
+        <Text className="text-white font-semibold text-sm">delete</Text>
       </View>
 
-      {/* badges: model, branch, vibelink status */}
-      <View className="flex-row items-center gap-1.5 mb-2">
-        {session.alive && (
-          <View className="flex-row items-center gap-1">
-            <View className="w-2 h-2 rounded-full bg-emerald-500" />
-            <Text className="text-emerald-400 text-xs">running</Text>
-          </View>
-        )}
-        {!session.alive && (
-          <View className="flex-row items-center gap-1">
-            <View className="w-2 h-2 rounded-full bg-[#52525b]" />
-            <Text className="text-[#71717a] text-xs">ended</Text>
-          </View>
-        )}
-        {modelLabel ? (
-          <View className="bg-[#1d3557] rounded px-1.5 py-0.5 ml-1">
-            <Text className="text-[#60a5fa] text-xs">{modelLabel}</Text>
-          </View>
-        ) : null}
-        {session.gitBranch ? (
-          <View className="bg-[#27272a] rounded px-1.5 py-0.5">
-            <Text className="text-[#a1a1aa] text-xs" numberOfLines={1}>
-              {session.gitBranch}
+      {/* swipeable row */}
+      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+        <Pressable
+          onPress={onPress}
+          className="bg-[#18181b] border border-[#27272a] rounded-xl p-4 active:opacity-70"
+        >
+          {/* top row: project name + time */}
+          <View className="flex-row items-center justify-between mb-1">
+            <Text
+              className="text-[#fafafa] font-medium text-base flex-1"
+              numberOfLines={1}
+            >
+              {session.projectName}
+            </Text>
+            <Text className="text-[#a1a1aa] text-xs ml-2">
+              {formatTime(session.lastActivity)}
             </Text>
           </View>
-        ) : null}
-        {vibelinkSession ? (
-          <View className="bg-[#164e3f] rounded px-1.5 py-0.5">
-            <Text className="text-emerald-300 text-xs">vibelink</Text>
-          </View>
-        ) : null}
-      </View>
 
-      {/* last user message preview */}
-      {lastUserMsg ? (
-        <Text className="text-[#a1a1aa] text-sm" numberOfLines={2}>
-          {lastUserMsg.text}
-        </Text>
-      ) : (
-        <Text className="text-[#52525b] text-xs" numberOfLines={1}>
-          {session.projectPath}
-        </Text>
-      )}
-    </Pressable>
+          {/* badges: model, branch, vibelink status */}
+          <View className="flex-row items-center gap-1.5 mb-2">
+            {session.alive && (
+              <View className="flex-row items-center gap-1">
+                <View className="w-2 h-2 rounded-full bg-emerald-500" />
+                <Text className="text-emerald-400 text-xs">running</Text>
+              </View>
+            )}
+            {!session.alive && (
+              <View className="flex-row items-center gap-1">
+                <View className="w-2 h-2 rounded-full bg-[#52525b]" />
+                <Text className="text-[#71717a] text-xs">ended</Text>
+              </View>
+            )}
+            {modelLabel ? (
+              <View className="bg-[#1d3557] rounded px-1.5 py-0.5 ml-1">
+                <Text className="text-[#60a5fa] text-xs">{modelLabel}</Text>
+              </View>
+            ) : null}
+            {session.gitBranch ? (
+              <View className="bg-[#27272a] rounded px-1.5 py-0.5">
+                <Text className="text-[#a1a1aa] text-xs" numberOfLines={1}>
+                  {session.gitBranch}
+                </Text>
+              </View>
+            ) : null}
+            {vibelinkSession ? (
+              <View className="bg-[#164e3f] rounded px-1.5 py-0.5">
+                <Text className="text-emerald-300 text-xs">vibelink</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* last user message preview */}
+          {lastUserMsg ? (
+            <Text className="text-[#a1a1aa] text-sm" numberOfLines={2}>
+              {lastUserMsg.text}
+            </Text>
+          ) : (
+            <Text className="text-[#52525b] text-xs" numberOfLines={1}>
+              {session.projectPath}
+            </Text>
+          )}
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -220,6 +272,24 @@ export default function SessionsScreen() {
         createdAt: new Date().toISOString(),
         alive: true,
       };
+    },
+    [],
+  );
+
+  const handleDeleteSession = useCallback(
+    async (session: ClaudeSession) => {
+      const { bridgeUrl, authToken } = useConnectionStore.getState();
+      try {
+        await fetch(`${bridgeUrl}/claude-sessions/${session.sessionId}`, {
+          method: 'DELETE',
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        });
+      } catch {
+        // ignore network errors on delete
+      }
+      setClaudeSessions((prev) =>
+        prev.filter((s) => s.sessionId !== session.sessionId),
+      );
     },
     [],
   );
@@ -312,7 +382,7 @@ export default function SessionsScreen() {
                   {section.title}
                 </Text>
                 <Text className="text-[#52525b] text-xs">
-                  {section.data.length}
+                  {section.data.length} · swipe to delete
                 </Text>
               </View>
             )}
@@ -324,6 +394,7 @@ export default function SessionsScreen() {
                 <SessionRow
                   session={item}
                   onPress={() => handleSessionPress(item)}
+                  onDelete={() => handleDeleteSession(item)}
                   vibelinkSession={vlSession}
                 />
               );
