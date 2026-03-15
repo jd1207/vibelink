@@ -59,8 +59,8 @@ export default function SessionScreen() {
     for (const msg of streamedMessages) {
       if (msg.contentBlocks) {
         for (const block of msg.contentBlocks) {
-          if (block.type === 'tool_use' || block.type === 'tool_result') {
-            const isComplete = block.type === 'tool_result' || (!!block.id && completedToolIds.has(block.id));
+          if (block.type === 'tool_use') {
+            const isComplete = !!block.id && completedToolIds.has(block.id);
             items.push({ kind: 'tool', data: { ...block, isComplete }, messageId: msg.id });
           }
         }

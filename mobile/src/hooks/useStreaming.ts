@@ -97,9 +97,9 @@ function processEvent(
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text ?? '')
           .join('');
-        // tool_result-only messages: no bubble, but keep contentBlocks so tool_use can mark complete
-        const hasOnlyToolResults = userEvt.message.content.every((b: any) => b.type === 'tool_result');
-        if (hasOnlyToolResults) {
+        // messages containing tool_results: no bubble, but keep contentBlocks so tool_use can mark complete
+        const hasToolResults = userEvt.message.content.some((b: any) => b.type === 'tool_result');
+        if (hasToolResults) {
           blocks = parseContentBlocks(userEvt.message.content as unknown[]);
           result.push({
             id: `toolres-${Date.now()}`,
@@ -111,7 +111,7 @@ function processEvent(
           break;
         }
       }
-      if (!content) break;
+      if (!content || isSystemInjected(content)) break;
 
       result.push({
         id: `user-${Date.now()}`,
@@ -132,4 +132,19 @@ function processEvent(
       break;
     }
   }
+}
+
+// detect system-injected content that shouldn't render as a user bubble
+// (skill instructions, system reminders, hook output, etc.)
+function isSystemInjected(text: string): boolean {
+  if (text.startsWith('<command-name>')) return true;
+  if (text.startsWith('<system-reminder>')) return true;
+  if (text.startsWith('<EXTREMELY')) return true;
+  if (/^---\s*\nname:/.test(text)) return true;
+  // long text with many markdown headers is likely skill/system content
+  if (text.length > 500) {
+    const headerCount = (text.match(/^#{1,3}\s/gm) || []).length;
+    if (headerCount >= 3) return true;
+  }
+  return false;
 }
