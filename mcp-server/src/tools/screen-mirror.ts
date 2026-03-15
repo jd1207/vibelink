@@ -23,21 +23,21 @@ export function registerScreenMirrorTools(
       if (!ipc.isConnected) return UNAVAILABLE;
 
       // request window list from bridge and wait for response
-      const windows = await ipc.request({
+      interface WindowEntry { title: string; className: string; id: string; width: number; height: number }
+      const result = await ipc.request({
         type: "list_windows",
         sessionId,
-      });
+      }) as { windows?: WindowEntry[] } | undefined;
 
-      if (!windows || !Array.isArray(windows.windows)) {
+      if (!result || !Array.isArray(result.windows)) {
         return {
           content: [{ type: "text" as const, text: "No windows found" }],
         };
       }
 
-      const list = windows.windows
+      const list = result.windows
         .map(
-          (w: { title: string; className: string; id: string; width: number; height: number }) =>
-            `- ${w.title} [${w.className}] (${w.id}, ${w.width}x${w.height})`
+          (w) => `- ${w.title} [${w.className}] (${w.id}, ${w.width}x${w.height})`
         )
         .join("\n");
 
