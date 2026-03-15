@@ -367,10 +367,12 @@ See package READMEs for internals:
 - [ ] **Dynamic UI rendering** -- render_ui components (tables, forms, charts) displayed in workspace and chat
 - [ ] **Setup script testing** -- end-to-end validation on fresh Mac and Windows installs
 
-### Planned
+### Planned (Phase 2/3)
 
+- [ ] **Settings screen** -- quality config, disconnect, app preferences, and user-configurable stream resolution
+- [ ] **Voice control mode** -- volume buttons to record and send text queries (Phase 4)
+- [ ] **WebRTC transport upgrade** -- lower latency interactive streaming with better codec support (Phase 5)
 - [ ] **App Store / Play Store** -- publish to stores for one-tap install (no sideloading)
-- [ ] **Localhost preview** -- see your dev server running on your phone via stream_preview MCP tool
 - [ ] **Auto-discovery** -- find the Bridge automatically via mDNS or Tailscale MagicDNS (no manual IP entry)
 - [ ] **Voice input** -- talk to Claude from your phone (Whisper STT)
 - [ ] **Camera/file uploads** -- send photos and files to Claude
@@ -378,6 +380,10 @@ See package READMEs for internals:
 - [ ] **GitHub integration** -- clone repos directly from the app
 - [ ] **iOS build guide** -- contributor documentation for building on Mac
 - [ ] **npx vibelink-setup** -- cross-platform setup wizard, no git clone needed
+
+### Built in Phase 3
+
+- [x] **Screen mirroring** -- MJPEG/WebSocket streaming with window picker, 720p monitoring, and stream tabs in workspace
 
 ## Contributing
 
