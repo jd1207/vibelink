@@ -9,7 +9,7 @@ export function useEventDispatch(sessionId: string) {
   const setComponent = useMessageStore((s) => s.setComponent);
   const updateComponent = useMessageStore((s) => s.updateComponent);
   const setInputRequest = useMessageStore((s) => s.setInputRequest);
-  const setPermissionRequest = useMessageStore((s) => s.setPermissionRequest);
+  const pushPermission = useMessageStore((s) => s.pushPermission);
   const addTab = useMessageStore((s) => s.addTab);
   const setMetadata = useMessageStore((s) => s.setMetadata);
   const updateUsage = useMessageStore((s) => s.updateUsage);
@@ -87,7 +87,7 @@ export function useEventDispatch(sessionId: string) {
         break;
       case 'permission_request':
         if (data.requestId) {
-          setPermissionRequest(sessionId, {
+          pushPermission(sessionId, {
             requestId: String(data.requestId),
             toolName: String(data.toolName ?? 'unknown'),
             toolInput: (data.toolInput as Record<string, unknown>) ?? {},
@@ -112,7 +112,7 @@ export function useEventDispatch(sessionId: string) {
         setStreaming(sessionId, false);
         break;
     }
-  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, setPermissionRequest, addTab, setMetadata, updateUsage, setCanvas]);
+  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, pushPermission, addTab, setMetadata, updateUsage, setCanvas]);
 
   return dispatch;
 }

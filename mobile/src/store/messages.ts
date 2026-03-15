@@ -11,7 +11,7 @@ interface MessageState {
   isStreaming: Record<string, boolean>;
   lastEventId: Record<string, string>;
   inputRequests: Record<string, InputRequest | null>;
-  permissionRequests: Record<string, { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null>;
+  permissionQueue: Record<string, { requestId: string; toolName: string; toolInput: Record<string, unknown> }[]>;
   metadata: Record<string, SessionMetadata>;
   canvas: Record<string, WorkspaceCanvas | null>;
 
@@ -22,7 +22,8 @@ interface MessageState {
   setStreaming: (sessionId: string, streaming: boolean) => void;
   setLastEventId: (sessionId: string, eventId: string) => void;
   setInputRequest: (sessionId: string, request: InputRequest | null) => void;
-  setPermissionRequest: (sessionId: string, request: { requestId: string; toolName: string; toolInput: Record<string, unknown> } | null) => void;
+  pushPermission: (sessionId: string, request: { requestId: string; toolName: string; toolInput: Record<string, unknown> }) => void;
+  shiftPermission: (sessionId: string) => void;
   setMetadata: (sessionId: string, metadata: SessionMetadata) => void;
   updateUsage: (sessionId: string, usage: Partial<SessionMetadata>) => void;
   setCanvas: (sessionId: string, canvas: WorkspaceCanvas | null) => void;
@@ -43,7 +44,7 @@ export const useMessageStore = create<MessageState>((set) => ({
   isStreaming: {},
   lastEventId: {},
   inputRequests: {},
-  permissionRequests: {},
+  permissionQueue: {},
   metadata: {},
   canvas: {},
 
@@ -104,10 +105,21 @@ export const useMessageStore = create<MessageState>((set) => ({
       inputRequests: { ...state.inputRequests, [sessionId]: request },
     })),
 
-  setPermissionRequest: (sessionId, request) =>
-    set((state) => ({
-      permissionRequests: { ...state.permissionRequests, [sessionId]: request },
-    })),
+  pushPermission: (sessionId, request) =>
+    set((state) => {
+      const existing = state.permissionQueue[sessionId] ?? [];
+      return {
+        permissionQueue: { ...state.permissionQueue, [sessionId]: [...existing, request] },
+      };
+    }),
+
+  shiftPermission: (sessionId) =>
+    set((state) => {
+      const existing = state.permissionQueue[sessionId] ?? [];
+      return {
+        permissionQueue: { ...state.permissionQueue, [sessionId]: existing.slice(1) },
+      };
+    }),
 
   setMetadata: (sessionId, metadata) =>
     set((state) => ({
@@ -135,9 +147,9 @@ export const useMessageStore = create<MessageState>((set) => ({
       const { [sessionId]: _s, ...isStreaming } = state.isStreaming;
       const { [sessionId]: _l, ...lastEventId } = state.lastEventId;
       const { [sessionId]: _i, ...inputRequests } = state.inputRequests;
-      const { [sessionId]: _p, ...permissionRequests } = state.permissionRequests;
+      const { [sessionId]: _p, ...permissionQueue } = state.permissionQueue;
       const { [sessionId]: _m, ...metadata } = state.metadata;
       const { [sessionId]: _cv, ...canvas } = state.canvas;
-      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionRequests, metadata, canvas };
+      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionQueue, metadata, canvas };
     }),
 }));

@@ -28,7 +28,8 @@ export default function SessionScreen() {
   const streamedMessages = useStreaming(sessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
-  const permissionRequest = useMessageStore((s) => s.permissionRequests[sessionId] ?? null);
+  const permissionQueue = useMessageStore((s) => s.permissionQueue[sessionId] ?? []);
+  const permissionRequest = permissionQueue[0] ?? null;
 
   // manual keyboard height tracking — more reliable than KeyboardAvoidingView on Android
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -132,7 +133,7 @@ export default function SessionScreen() {
     (behavior: 'allow' | 'deny') => {
       if (!permissionRequest) return;
       sendRaw({ type: 'permission_response', requestId: permissionRequest.requestId, behavior });
-      useMessageStore.getState().setPermissionRequest(sessionId, null);
+      useMessageStore.getState().shiftPermission(sessionId);
     },
     [permissionRequest, sendRaw, sessionId],
   );
@@ -186,9 +187,16 @@ export default function SessionScreen() {
           <View className="px-4 py-3 bg-[#1c1917] border-t border-[#f59e0b33]">
             <View className="flex-row items-center gap-2">
               <View className="flex-1">
-                <Text className="text-[#fbbf24] text-xs font-semibold">
-                  {formatToolName(permissionRequest.toolName)}
-                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-[#fbbf24] text-xs font-semibold">
+                    {formatToolName(permissionRequest.toolName)}
+                  </Text>
+                  {permissionQueue.length > 1 ? (
+                    <Text className="text-[#71717a] text-[10px]">
+                      +{permissionQueue.length - 1} more
+                    </Text>
+                  ) : null}
+                </View>
                 <Text className="text-[#a1a1aa] text-[11px] mt-0.5" numberOfLines={2}>
                   {formatToolInput(permissionRequest.toolName, permissionRequest.toolInput)}
                 </Text>
