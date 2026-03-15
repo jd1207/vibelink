@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-echo "=== VibeLink Setup ==="
+AUTO_MODE=false
+if [[ "${1:-}" == "--auto" ]]; then
+  AUTO_MODE=true
+fi
+
+echo ""
+echo "  _    _ ___ ___  ___ _    ___ _  _ _  __"
+echo " | |  / |_ _| _ )| __| |  |_ _| \\| | |/ /"
+echo " | \\/|  || || _ \\| _|| |__ | ||    |   < "
+echo "  \\_/\\_/|___|___/|___|____|___|_|\\_|_|\\_\\"
 echo ""
 
 # check prerequisites
@@ -63,10 +72,17 @@ else
   echo "bridge/.env already exists, keeping existing config"
 fi
 
-# systemd service (optional)
-read -p "install as systemd service? [y/N] " install_svc
+# background service (optional)
+if [[ "$AUTO_MODE" == true ]]; then
+  install_svc="n"
+else
+  read -p "install as background service? [y/N] " install_svc
+fi
+
 if [[ "$install_svc" =~ ^[Yy]$ ]]; then
-  sudo tee /etc/systemd/system/vibelink.service > /dev/null <<SVCEOF
+  case "$(uname)" in
+    Linux)
+      sudo tee /etc/systemd/system/vibelink.service > /dev/null <<SVCEOF
 [Unit]
 Description=VibeLink Bridge Server
 After=network.target tailscaled.service
@@ -82,26 +98,42 @@ EnvironmentFile=$SCRIPT_DIR/bridge/.env
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now vibelink
-  echo "vibelink service installed and started"
-fi
-
-# android apk (optional)
-read -p "build android APK? [y/N] " build_apk
-if [[ "$build_apk" =~ ^[Yy]$ ]]; then
-  cd "$SCRIPT_DIR/mobile"
-  npm install
-  npx expo prebuild --platform android
-  if [ ! -f android/app/vibelink.keystore ]; then
-    keytool -genkeypair -v \
-      -keystore android/app/vibelink.keystore \
-      -alias vibelink -keyalg RSA -keysize 2048 \
-      -validity 10000 -storepass vibelink \
-      -dname "CN=VibeLink"
-  fi
-  cd android && ./gradlew assembleRelease && cd "$SCRIPT_DIR"
-  echo "APK built: mobile/android/app/build/outputs/apk/release/app-release.apk"
+      sudo systemctl daemon-reload
+      sudo systemctl enable --now vibelink
+      echo "vibelink systemd service installed and started"
+      ;;
+    Darwin)
+      TOKEN=""
+      if [ -f "$SCRIPT_DIR/bridge/.env" ]; then
+        TOKEN=$(grep AUTH_TOKEN "$SCRIPT_DIR/bridge/.env" | cut -d= -f2)
+      fi
+      cat > ~/Library/LaunchAgents/com.vibelink.bridge.plist <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vibelink.bridge</string>
+  <key>ProgramArguments</key><array>
+    <string>$(which node)</string>
+    <string>$SCRIPT_DIR/bridge/dist/server.js</string>
+  </array>
+  <key>WorkingDirectory</key><string>$SCRIPT_DIR/bridge</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>AUTH_TOKEN</key><string>$TOKEN</string>
+    <key>PORT</key><string>3400</string>
+  </dict>
+  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLISTEOF
+      launchctl load ~/Library/LaunchAgents/com.vibelink.bridge.plist
+      echo "vibelink launchd service installed and started"
+      ;;
+    *)
+      echo "warning: unsupported OS for service install, start manually with: node bridge/dist/server.js"
+      ;;
+  esac
 fi
 
 # print summary
