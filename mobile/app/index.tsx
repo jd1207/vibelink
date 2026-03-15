@@ -296,16 +296,19 @@ export default function SessionsScreen() {
 
   const handleSessionPress = useCallback(
     (session: ClaudeSession) => {
-      // check if there's already a vibelink session for this project
-      const existingVl = Object.values(vibelinkSessions).find(
-        (vl) => vl.projectPath === session.projectPath && vl.alive,
-      );
-      if (existingVl) {
-        router.push(`/session/${existingVl.id}`);
-        return;
+      // only reuse an existing vibelink session if tapping an ALIVE cli session
+      // for the same project — avoids routing ended sessions to unrelated live ones
+      if (session.alive) {
+        const existingVl = Object.values(vibelinkSessions).find(
+          (vl) => vl.projectPath === session.projectPath && vl.alive,
+        );
+        if (existingVl) {
+          router.push(`/session/${existingVl.id}`);
+          return;
+        }
       }
 
-      // for dead sessions, offer to resume
+      // for ended sessions, resume with the specific claude session id
       const resumeId = session.alive ? undefined : session.sessionId;
 
       createVibelinkSession(session.projectPath, resumeId)
