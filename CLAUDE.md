@@ -159,6 +159,7 @@ When you discover something that will bite us again (wrong port, env var gotcha,
 - `react-native-keyboard-controller` and `react-native-webview` only work in standalone APK / dev client builds, not Expo Go — use conditional loading
 - Expo Go is NOT a supported setup path — use expo-dev-client for development, release APK for daily use
 - `update_ui` MCP tool sends `ui_modify` event type (not `ui_update`) — mobile dispatcher must handle both
+- **Zustand selector infinite loop**: NEVER use `?? []` or `?? {}` as fallback in a Zustand selector — it creates a new reference every render, triggering an infinite re-render loop (`Maximum update depth exceeded`). Always use a stable constant defined outside the component (e.g. `EMPTY_EVENTS`, `EMPTY_TABS`, `EMPTY_PERMISSION_QUEUE`) from the store module
 
 ## Implementation Phases
 
