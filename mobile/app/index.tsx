@@ -135,6 +135,7 @@ export default function SessionsScreen() {
           await SecureStore.deleteItemAsync('vibelink_auth_token');
           useConnectionStore.getState().setBridgeUrl('');
           useConnectionStore.getState().setAuthToken('');
+          useConnectionStore.getState().setConnected(false);
           router.replace('/setup');
         },
       },
