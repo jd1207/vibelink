@@ -3,7 +3,7 @@ import { View, Text } from 'react-native';
 import { DecisionTable } from './DecisionTable';
 import { CodeViewer } from './CodeViewer';
 import { FormRenderer } from './FormRenderer';
-import { TreeView } from './TreeView';
+import { TreeView, TreeItem } from './TreeView';
 import { ProgressBar } from './ProgressBar';
 import { MarkdownContent } from './MarkdownRenderer';
 
@@ -78,7 +78,7 @@ export const DynamicRenderer = React.memo(function DynamicRenderer({ component, 
     case 'tree_view':
       return (
         <TreeView
-          items={(props.items as Array<{ name: string; type: 'file' | 'folder'; children?: unknown[] }>) ?? []}
+          items={(props.items as TreeItem[]) ?? []}
           onInteraction={handleInteraction}
         />
       );
