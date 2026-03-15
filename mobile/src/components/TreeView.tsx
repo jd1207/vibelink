@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-interface TreeItem {
+export interface TreeItem {
   name: string;
   type: 'file' | 'folder';
   children?: TreeItem[];
