@@ -361,15 +361,11 @@ See package READMEs for internals:
 - [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
 - [x] **File Browser** -- browse project files in workspace, view contents, render markdown
 - [x] **Viewport Toggle** -- switch workspace between mobile and 1280px desktop width
+- [x] **Session Browser** -- lists all Claude Code sessions on the system, resume with conversation history
+- [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
+- [x] **File Browser** -- browse project files in workspace, view contents, render markdown
 
-### Sprint 4 (done)
-
-- [x] **Session browser v1** -- see all Claude Code sessions on your system, view recent messages, resume sessions
-- [x] **Workspace viewport toggle** -- switch between mobile and desktop width when previewing websites
-- [x] **Theme system** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), instant switching, zero hardcoded colors
-- [x] **File browser** -- browse project files in workspace, view file contents, render markdown
-
-### Now (Sprint 5)
+### Now
 
 - [ ] **Session browser v2** -- attach to live running CLI sessions (bidirectional), not just view history. Session multiplexing so phone and terminal share the same Claude process
 - [ ] **UI quality of life** -- loading states, smoother transitions, polish rough edges
@@ -377,7 +373,7 @@ See package READMEs for internals:
 - [ ] **Smarter system prompt** -- richer context injection so Claude makes better use of workspace tools
 - [ ] **Permission approvals outside chat** -- approve tool calls from home screen or notification-style UI
 
-### Next (Sprint 6-7)
+### Next
 
 - [ ] **Onboarding flow** -- Apple-style first-run experience: connect to bridge, customize theme, skippable intro
 - [ ] **File transfer** -- send files/photos to chat, download files from chat
