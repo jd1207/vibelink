@@ -1,30 +1,79 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BRIDGE_DIR="$SCRIPT_DIR/bridge"
+PID_FILE="/tmp/vibelink-bridge.pid"
+LOG_FILE="/tmp/vibelink-bridge.log"
+
+start_direct() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "vibelink is already running (pid $(cat "$PID_FILE"))"
+    return
+  fi
+  cd "$BRIDGE_DIR"
+  if [ -f .env ]; then
+    set -a; source .env; set +a
+  fi
+  nohup node dist/server.js > "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  echo "vibelink started (pid $!, log at $LOG_FILE)"
+}
+
+stop_direct() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    kill "$(cat "$PID_FILE")"
+    rm -f "$PID_FILE"
+    echo "vibelink stopped"
+  else
+    echo "vibelink is not running"
+    rm -f "$PID_FILE"
+  fi
+}
+
+status_direct() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "vibelink is running (pid $(cat "$PID_FILE"))"
+  else
+    echo "vibelink is not running"
+    rm -f "$PID_FILE"
+  fi
+  if command -v curl >/dev/null; then
+    echo ""
+    curl -s http://localhost:3400/debug 2>/dev/null | head -20 || true
+  fi
+}
 
 case "$1" in
   start)
     if systemctl is-active vibelink >/dev/null 2>&1; then
-      echo "vibelink is already running"
+      echo "vibelink is already running (systemd)"
     else
-      sudo systemctl start vibelink
-      echo "vibelink started"
+      start_direct
     fi
     ;;
   stop)
-    sudo systemctl stop vibelink
-    echo "vibelink stopped"
+    if systemctl is-active vibelink >/dev/null 2>&1; then
+      sudo systemctl stop vibelink
+      echo "vibelink stopped (systemd)"
+    else
+      stop_direct
+    fi
     ;;
   status)
-    systemctl status vibelink --no-pager 2>/dev/null || echo "vibelink service not installed"
-    if command -v curl >/dev/null; then
-      echo ""
-      curl -s http://localhost:3400/debug 2>/dev/null | head -20 || true
+    if systemctl is-active vibelink >/dev/null 2>&1; then
+      systemctl status vibelink --no-pager
+    else
+      status_direct
     fi
     ;;
   regenerate-token)
     TOKEN=$(openssl rand -hex 32)
-    sed -i "s/AUTH_TOKEN=.*/AUTH_TOKEN=$TOKEN/" "$SCRIPT_DIR/bridge/.env"
-    sudo systemctl restart vibelink 2>/dev/null || true
+    sed -i "s/AUTH_TOKEN=.*/AUTH_TOKEN=$TOKEN/" "$BRIDGE_DIR/.env"
+    if systemctl is-active vibelink >/dev/null 2>&1; then
+      sudo systemctl restart vibelink
+    elif [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      kill "$(cat "$PID_FILE")"
+      start_direct
+    fi
     echo "new token: $TOKEN"
     ;;
   *)
