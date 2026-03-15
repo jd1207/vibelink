@@ -1,29 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useConnectionStore } from '../src/store/connection';
-import { colors } from '../src/constants/colors';
+import { useColors } from '../src/store/settings';
 
-// conditional load — expo-camera requires native module compiled into APK
 let CameraViewComponent: React.ComponentType<any> | null = null;
 let useCameraPermissionsFn: (() => [any, () => Promise<any>]) | null = null;
 try {
   const cam = require('expo-camera');
   CameraViewComponent = cam.CameraView;
   useCameraPermissionsFn = cam.useCameraPermissions;
-} catch {
-  // native module not available — QR scanning disabled
-}
+} catch {}
 
-// stable hook reference so call order never changes between renders
 const useCameraPermissionsHook: () => [any, () => Promise<any>] =
   useCameraPermissionsFn ?? (() => [null, async () => ({ granted: false })]);
 
@@ -39,12 +28,11 @@ function parseVibelinkUri(uri: string): { host: string; port: string; token: str
     const token = url.searchParams.get('token') || '';
     if (!host) return null;
     return { host, port, token };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export default function SetupScreen() {
+  const colors = useColors();
   const [bridgeUrl, setBridgeUrl] = useState('');
   const [authToken, setAuthToken] = useState('');
   const [testing, setTesting] = useState(false);
@@ -57,39 +45,23 @@ export default function SetupScreen() {
 
   const handleConnect = useCallback(async (overrideUrl?: string, overrideToken?: string) => {
     const url = (overrideUrl || bridgeUrl).trim();
-    if (!url) {
-      setError('bridge url is required');
-      return;
-    }
-
+    if (!url) { setError('bridge url is required'); return; }
     const connectToken = overrideToken ?? authToken;
-
-    // normalize url — add http:// if missing
     const normalizedUrl = url.startsWith('http') ? url : `http://${url}`;
-
     setTesting(true);
     setError('');
-
     try {
       const res = await fetch(`${normalizedUrl}/health`, { method: 'GET' });
       if (!res.ok) throw new Error(`status ${res.status}`);
       const body = await res.json();
       if (body.status !== 'ok') throw new Error('unexpected response');
-
-      // save to secure store
       await SecureStore.setItemAsync(BRIDGE_URL_KEY, normalizedUrl);
       await SecureStore.setItemAsync(AUTH_TOKEN_KEY, connectToken.trim());
-
-      // update zustand
       storeSetUrl(normalizedUrl);
       storeSetToken(connectToken.trim());
-
       router.replace('/');
-    } catch (err) {
-      setError('could not connect. check that tailscale is running on both devices.');
-    } finally {
-      setTesting(false);
-    }
+    } catch { setError('could not connect. check that tailscale is running on both devices.'); }
+    finally { setTesting(false); }
   }, [bridgeUrl, authToken, storeSetUrl, storeSetToken]);
 
   const scannedRef = useRef(false);
@@ -110,7 +82,6 @@ export default function SetupScreen() {
     }
   }, [handleConnect]);
 
-  // auto-connect when navigated from deep link with pre-filled params
   useEffect(() => {
     if (params.host) {
       const prefillUrl = `${params.host}:${params.port || '3400'}`;
@@ -123,107 +94,39 @@ export default function SetupScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'setup', headerBackVisible: false }} />
-
       {scanning && CameraViewComponent ? (
         <View style={{ flex: 1, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
-          <CameraViewComponent
-            style={{ flex: 1 }}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={handleQrScanned}
-          />
-          <Pressable
-            onPress={() => setScanning(false)}
-            style={{ position: 'absolute', top: 60, right: 20, padding: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8 }}
-          >
+          <CameraViewComponent style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={handleQrScanned} />
+          <Pressable onPress={() => setScanning(false)} style={{ position: 'absolute', top: 60, right: 20, padding: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8 }}>
             <Text style={{ color: colors.text.primary, fontSize: 16 }}>cancel</Text>
           </Pressable>
         </View>
       ) : null}
-
       <View className="flex-1 px-6 pt-16" style={{ backgroundColor: colors.bg.primary }}>
         <Text className="text-2xl font-bold mb-2" style={{ color: colors.text.primary }}>vibelink</Text>
-        <Text className="text-sm mb-8" style={{ color: colors.text.subtle }}>
-          connect to your bridge server to get started
-        </Text>
-
+        <Text className="text-sm mb-8" style={{ color: colors.text.subtle }}>connect to your bridge server to get started</Text>
         {CameraViewComponent ? (
           <>
-            <Pressable
-              onPress={async () => {
-                if (!permission?.granted) {
-                  const result = await requestPermission();
-                  if (!result.granted) return;
-                }
-                scannedRef.current = false;
-                setScanning(true);
-              }}
-              className="p-4 rounded-xl items-center mb-6 active:opacity-80"
-              style={{ backgroundColor: colors.accent.primary }}
-            >
-              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
-                scan qr code
-              </Text>
+            <Pressable onPress={async () => {
+              if (!permission?.granted) { const r = await requestPermission(); if (!r.granted) return; }
+              scannedRef.current = false; setScanning(true);
+            }} className="p-4 rounded-xl items-center mb-6 active:opacity-80" style={{ backgroundColor: colors.accent.primary }}>
+              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>scan qr code</Text>
             </Pressable>
-
-            <Text className="text-center mb-4" style={{ color: colors.text.muted }}>
-              or enter manually
-            </Text>
+            <Text className="text-center mb-4" style={{ color: colors.text.muted }}>or enter manually</Text>
           </>
         ) : null}
-
         <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>bridge url</Text>
-        <TextInput
-          className="rounded-xl px-4 py-3 text-base mb-1 border"
-          style={{
-            backgroundColor: colors.bg.surface,
-            borderColor: colors.border.default,
-            color: colors.text.primary,
-          }}
-          placeholder="hostname:3400"
-          placeholderTextColor={colors.text.dim}
-          value={bridgeUrl}
-          onChangeText={setBridgeUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-        />
-        <Text className="text-xs mt-1 mb-2" style={{ color: colors.text.muted }}>
-          use your device's tailscale hostname or IP — both devices need tailscale on the same account
-        </Text>
-
+        <TextInput className="rounded-xl px-4 py-3 text-base mb-1 border" style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default, color: colors.text.primary }}
+          placeholder="hostname:3400" placeholderTextColor={colors.text.dim} value={bridgeUrl} onChangeText={setBridgeUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+        <Text className="text-xs mt-1 mb-2" style={{ color: colors.text.muted }}>use your device's tailscale hostname or IP</Text>
         <Text className="text-sm mb-1.5" style={{ color: colors.text.muted }}>auth token</Text>
-        <TextInput
-          className="rounded-xl px-4 py-3 text-base mb-6 border"
-          style={{
-            backgroundColor: colors.bg.surface,
-            borderColor: colors.border.default,
-            color: colors.text.primary,
-          }}
-          placeholder="optional"
-          placeholderTextColor={colors.text.dim}
-          value={authToken}
-          onChangeText={setAuthToken}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
-
-        {error ? (
-          <Text className="text-sm mb-4" style={{ color: colors.status.error }}>{error}</Text>
-        ) : null}
-
-        <Pressable
-          onPress={() => handleConnect()}
-          disabled={testing}
-          className="rounded-xl py-4 items-center active:opacity-80"
-          style={{ backgroundColor: testing ? colors.border.subtle : colors.accent.primary }}
-        >
-          {testing ? (
-            <ActivityIndicator color={colors.text.primary} />
-          ) : (
-            <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>connect</Text>
-          )}
+        <TextInput className="rounded-xl px-4 py-3 text-base mb-6 border" style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default, color: colors.text.primary }}
+          placeholder="optional" placeholderTextColor={colors.text.dim} value={authToken} onChangeText={setAuthToken} autoCapitalize="none" autoCorrect={false} secureTextEntry />
+        {error ? <Text className="text-sm mb-4" style={{ color: colors.status.error }}>{error}</Text> : null}
+        <Pressable onPress={() => handleConnect()} disabled={testing} className="rounded-xl py-4 items-center active:opacity-80"
+          style={{ backgroundColor: testing ? colors.border.subtle : colors.accent.primary }}>
+          {testing ? <ActivityIndicator color={colors.text.primary} /> : <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>connect</Text>}
         </Pressable>
       </View>
     </>

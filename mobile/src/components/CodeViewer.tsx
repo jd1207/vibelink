@@ -2,16 +2,12 @@ import React, { useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { colors } from '../constants/colors';
+import { useColors } from '../store/settings';
 
-interface CodeViewerProps {
-  code: string;
-  language?: string;
-  diff?: boolean;
-  title?: string;
-}
+interface CodeViewerProps { code: string; language?: string; diff?: boolean; title?: string; }
 
 export function CodeViewer({ code, language, diff, title }: CodeViewerProps) {
+  const colors = useColors();
   const handleCopy = useCallback(async () => {
     await Clipboard.setStringAsync(code);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -24,9 +20,7 @@ export function CodeViewer({ code, language, diff, title }: CodeViewerProps) {
       {title ? (
         <View className="px-3 py-2 flex-row items-center justify-between" style={{ backgroundColor: colors.bg.elevated }}>
           <Text className="text-xs font-mono" style={{ color: colors.text.muted }}>{title}</Text>
-          {language ? (
-            <Text className="text-[10px]" style={{ color: colors.text.subtle }}>{language}</Text>
-          ) : null}
+          {language ? <Text className="text-[10px]" style={{ color: colors.text.subtle }}>{language}</Text> : null}
         </View>
       ) : null}
       <Pressable onLongPress={handleCopy}>
@@ -45,31 +39,17 @@ export function CodeViewer({ code, language, diff, title }: CodeViewerProps) {
   );
 }
 
-interface LineRowProps {
-  line: string;
-  lineNumber: number;
-  diff?: boolean;
-}
-
-const LineRow = React.memo(function LineRow({ line, lineNumber, diff }: LineRowProps) {
+const LineRow = React.memo(function LineRow({ line, lineNumber, diff }: { line: string; lineNumber: number; diff?: boolean }) {
+  const colors = useColors();
   let lineColor: string = colors.code.text;
   if (diff) {
     if (line.startsWith('+')) lineColor = colors.code.added;
     else if (line.startsWith('-')) lineColor = colors.code.removed;
   }
-
   return (
     <View className="flex-row">
-      <Text
-        className="text-xs font-mono w-8 text-right mr-3"
-        selectable={false}
-        style={{ color: colors.code.lineNumber }}
-      >
-        {lineNumber}
-      </Text>
-      <Text className="text-xs font-mono leading-4" selectable style={{ color: lineColor }}>
-        {line}
-      </Text>
+      <Text className="text-xs font-mono w-8 text-right mr-3" selectable={false} style={{ color: colors.code.lineNumber }}>{lineNumber}</Text>
+      <Text className="text-xs font-mono leading-4" selectable style={{ color: lineColor }}>{line}</Text>
     </View>
   );
 });

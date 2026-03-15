@@ -2,13 +2,14 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated } from 'react-native';
 import { ChatMessage } from '../store/messages';
 import { MarkdownContent } from './MarkdownRenderer';
-import { colors } from '../constants/colors';
+import { useColors } from '../store/settings';
 
 interface MessageBubbleProps {
   message: ChatMessage;
 }
 
 const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubbleProps) {
+  const colors = useColors();
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -39,6 +40,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
 export default MessageBubble;
 
 function AnimatedDots() {
+  const colors = useColors();
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -52,14 +54,10 @@ function AnimatedDots() {
           Animated.timing(dot, { toValue: 0, duration: 250, useNativeDriver: true }),
         ])
       );
-
     const a1 = bounce(dot1, 0);
     const a2 = bounce(dot2, 150);
     const a3 = bounce(dot3, 300);
-    a1.start();
-    a2.start();
-    a3.start();
-
+    a1.start(); a2.start(); a3.start();
     return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, [dot1, dot2, dot3]);
 
@@ -76,7 +74,5 @@ function AnimatedDots() {
 
 function formatTimestamp(ts: number): string {
   const date = new Date(ts);
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
+  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
 }
