@@ -6,6 +6,7 @@ import { MetadataPanel } from './MetadataPanel';
 import { DynamicRenderer } from './DynamicRenderer';
 import { FileBrowser } from './FileBrowser';
 import { useFileBrowser } from '../hooks/useFileBrowser';
+import { useColors } from '../store/settings';
 
 // conditional load — react-native-webview not available in Expo Go
 let WebView: React.ComponentType<any> | null = null;
@@ -29,6 +30,7 @@ interface WorkspaceViewProps {
 }
 
 export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceViewProps) {
+  const colors = useColors();
   const metadata = useMessageStore((s) => s.metadata[sessionId] ?? EMPTY_METADATA);
   const components = useMessageStore((s) => s.components[sessionId] ?? EMPTY_COMPONENTS);
   const canvas = useMessageStore((s) => s.canvas[sessionId] ?? null);
@@ -56,14 +58,14 @@ export function WorkspaceView({ sessionId, onComponentInteraction }: WorkspaceVi
       {hasMetadata ? <MetadataPanel metadata={metadata} /> : null}
 
       {showTabBar ? (
-        <View className="flex-row px-4 py-1.5 border-b border-[#27272a]">
+        <View className="flex-row px-4 py-1.5 border-b" style={{ borderBottomColor: colors.border.default }}>
           <Pressable onPress={() => setWorkspaceTab('canvas')}>
-            <Text className="text-xs mr-4" style={{ color: workspaceTab === 'canvas' ? '#fafafa' : '#52525b' }}>
+            <Text className="text-xs mr-4" style={{ color: workspaceTab === 'canvas' ? colors.text.primary : colors.text.dim }}>
               {canvas?.title || 'content'}
             </Text>
           </Pressable>
           <Pressable onPress={() => setWorkspaceTab('files')}>
-            <Text className="text-xs" style={{ color: workspaceTab === 'files' ? '#fafafa' : '#52525b' }}>
+            <Text className="text-xs" style={{ color: workspaceTab === 'files' ? colors.text.primary : colors.text.dim }}>
               files
             </Text>
           </Pressable>
@@ -100,14 +102,15 @@ const DESKTOP_VIEWPORT_JS = `(function(){
 })(); true;`;
 
 function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
+  const colors = useColors();
   const [viewport, setViewport] = React.useState<'mobile' | 'desktop'>('mobile');
 
   if (!WebView) {
     return (
       <View className="flex-1 items-center justify-center">
-        <Text className="text-[#52525b] text-sm">webview requires standalone apk build</Text>
+        <Text className="text-sm" style={{ color: colors.text.dim }}>webview requires standalone apk build</Text>
         {canvas.url ? (
-          <Text className="text-[#3b82f6] text-xs mt-2" selectable>{canvas.url}</Text>
+          <Text className="text-xs mt-2" selectable style={{ color: colors.accent.primary }}>{canvas.url}</Text>
         ) : null}
       </View>
     );
@@ -116,13 +119,14 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
   const isDesktop = viewport === 'desktop';
 
   const source = canvas.mode === 'html'
-    ? { html: wrapHtml(canvas.html ?? '', isDesktop) }
+    ? { html: wrapHtml(canvas.html ?? '', isDesktop, colors) }
     : { uri: canvas.url ?? '' };
 
   return (
     <View className="flex-1">
-      <View className="px-4 py-1.5 border-b border-[#27272a] flex-row items-center justify-between">
-        <Text className="text-[#71717a] text-[10px] flex-1" numberOfLines={1}>
+      <View className="px-4 py-1.5 border-b flex-row items-center justify-between"
+        style={{ borderBottomColor: colors.border.default }}>
+        <Text className="text-[10px] flex-1" numberOfLines={1} style={{ color: colors.text.subtle }}>
           {canvas.title ?? ''}
         </Text>
         <ViewportToggle
@@ -134,7 +138,7 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
       <WebView
         key={viewport}
         source={source}
-        style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+        style={{ flex: 1, backgroundColor: colors.bg.primary }}
         originWhitelist={['*']}
         javaScriptEnabled
         domStorageEnabled
@@ -149,20 +153,21 @@ function CanvasWebView({ canvas }: { canvas: WorkspaceCanvas }) {
 }
 
 function ViewportToggle({ mode, onToggle }: { mode: 'mobile' | 'desktop'; onToggle: () => void }) {
+  const colors = useColors();
   const isMobile = mode === 'mobile';
   return (
     <Pressable
       onPress={onToggle}
       className="flex-row items-center rounded px-2 py-1"
-      style={{ backgroundColor: '#18181b', gap: 6 }}
+      style={{ backgroundColor: colors.bg.surface, gap: 6 }}
     >
-      <PhoneIcon active={isMobile} />
-      <MonitorIcon active={!isMobile} />
+      <PhoneIcon active={isMobile} activeColor={colors.accent.primary} inactiveColor={colors.text.dim} />
+      <MonitorIcon active={!isMobile} activeColor={colors.accent.primary} inactiveColor={colors.text.dim} />
     </Pressable>
   );
 }
 
-function PhoneIcon({ active }: { active: boolean }) {
+function PhoneIcon({ active, activeColor, inactiveColor }: { active: boolean; activeColor: string; inactiveColor: string }) {
   return (
     <View
       style={{
@@ -170,14 +175,14 @@ function PhoneIcon({ active }: { active: boolean }) {
         height: 15,
         borderRadius: 2,
         borderWidth: 1.5,
-        borderColor: active ? '#3b82f6' : '#52525b',
+        borderColor: active ? activeColor : inactiveColor,
       }}
     />
   );
 }
 
-function MonitorIcon({ active }: { active: boolean }) {
-  const color = active ? '#3b82f6' : '#52525b';
+function MonitorIcon({ active, activeColor, inactiveColor }: { active: boolean; activeColor: string; inactiveColor: string }) {
+  const color = active ? activeColor : inactiveColor;
   return (
     <View style={{ alignItems: 'center' }}>
       <View
@@ -194,9 +199,16 @@ function MonitorIcon({ active }: { active: boolean }) {
   );
 }
 
-function wrapHtml(html: string, desktop?: boolean): string {
+interface ThemeColors {
+  bg: { primary: string };
+  text: { primary: string };
+}
+
+function wrapHtml(html: string, desktop?: boolean, colors?: ThemeColors): string {
   const viewportWidth = desktop ? `${DESKTOP_WIDTH}` : 'device-width';
   const viewportMeta = `<meta name="viewport" content="width=${viewportWidth},initial-scale=1">`;
+  const bgColor = colors?.bg.primary ?? '#0a0a0a';
+  const textColor = colors?.text.primary ?? '#fafafa';
 
   // full HTML document — replace or inject viewport meta
   if (html.includes('<html') || html.includes('<!DOCTYPE')) {
@@ -212,7 +224,7 @@ function wrapHtml(html: string, desktop?: boolean): string {
 ${viewportMeta}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0a0a; color: #fafafa; font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
+  body { background: ${bgColor}; color: ${textColor}; font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
 </style>
 </head><body>${html}</body></html>`;
 }
@@ -235,35 +247,5 @@ function WorkspaceFileBrowser({ sessionId }: { sessionId: string }) {
       loading={fb.loading}
       onBack={fb.navigateUp}
     />
-  );
-}
-
-function BlueprintEmpty() {
-  return (
-    <View className="flex-1 items-center justify-center" style={{ backgroundColor: '#0a0a0a' }}>
-      <View className="absolute inset-0 opacity-[0.04]">
-        {Array.from({ length: 20 }).map((_, i) => (
-          <View
-            key={`h-${i}`}
-            className="absolute left-0 right-0"
-            style={{ top: i * 40, height: 1, backgroundColor: '#3b82f6' }}
-          />
-        ))}
-        {Array.from({ length: 12 }).map((_, i) => (
-          <View
-            key={`v-${i}`}
-            className="absolute top-0 bottom-0"
-            style={{ left: i * 40, width: 1, backgroundColor: '#3b82f6' }}
-          />
-        ))}
-      </View>
-
-      <View className="items-center z-10">
-        <Text className="text-[#1e293b] text-5xl font-light mb-2">workspace</Text>
-        <Text className="text-[#27272a] text-sm text-center leading-5 px-8">
-          connect to a session to begin
-        </Text>
-      </View>
-    </View>
   );
 }

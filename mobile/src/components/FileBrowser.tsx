@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { MarkdownContent } from './MarkdownRenderer';
+import { useColors } from '../store/settings';
 
 export interface FileEntry {
   name: string;
@@ -58,27 +59,39 @@ export function FileBrowser({
   loading,
   onBack,
 }: FileBrowserProps) {
+  const colors = useColors();
+
   // file content view
   if (fileName && fileContent != null) {
     const isMarkdown = fileName.endsWith('.md');
     return (
-      <View className="flex-1 bg-[#0a0a0a]">
+      <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
         <Pressable
           onPress={onBack}
-          className="flex-row items-center px-4 py-3 bg-[#18181b] border-b border-[#27272a]"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            backgroundColor: colors.bg.surface,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.border.default,
+          }}
         >
-          <Text className="text-[#3b82f6] text-sm font-semibold mr-2">{'\u2190'}</Text>
-          <Text className="text-[#fafafa] text-sm font-mono flex-1" numberOfLines={1}>
+          <Text style={{ color: colors.accent.primary, fontSize: 14, fontWeight: '600', marginRight: 8 }}>
+            {'\u2190'}
+          </Text>
+          <Text style={{ color: colors.text.primary, fontSize: 14, fontFamily: 'monospace', flex: 1 }} numberOfLines={1}>
             {fileName}
           </Text>
         </Pressable>
-        <ScrollView className="flex-1 px-4 py-3">
+        <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingVertical: 12 }}>
           {isMarkdown ? (
             <MarkdownContent text={fileContent} isUser={false} />
           ) : (
             <FileContentView content={fileContent} />
           )}
-          <View className="h-8" />
+          <View style={{ height: 32 }} />
         </ScrollView>
       </View>
     );
@@ -87,27 +100,39 @@ export function FileBrowser({
   // directory listing view
   const isRoot = currentPath === '.' || currentPath === '';
   return (
-    <View className="flex-1 bg-[#0a0a0a]">
-      <View className="flex-row items-center px-4 py-3 bg-[#18181b] border-b border-[#27272a]">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: colors.bg.surface,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.border.default,
+        }}
+      >
         {!isRoot && (
-          <Pressable onPress={onBack} className="mr-2">
-            <Text className="text-[#3b82f6] text-sm font-semibold">{'\u2190'}</Text>
+          <Pressable onPress={onBack} style={{ marginRight: 8 }}>
+            <Text style={{ color: colors.accent.primary, fontSize: 14, fontWeight: '600' }}>
+              {'\u2190'}
+            </Text>
           </Pressable>
         )}
-        <Text className="text-[#a1a1aa] text-xs font-mono flex-1" numberOfLines={1}>
+        <Text style={{ color: colors.text.muted, fontSize: 12, fontFamily: 'monospace', flex: 1 }} numberOfLines={1}>
           /{currentPath === '.' ? '' : currentPath}
         </Text>
-        <Text className="text-[#52525b] text-xs ml-2">
+        <Text style={{ color: colors.text.dim, fontSize: 12, marginLeft: 8 }}>
           {entries.length} items
         </Text>
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#3b82f6" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.accent.primary} />
         </View>
       ) : (
-        <ScrollView className="flex-1">
+        <ScrollView style={{ flex: 1 }}>
           {!isRoot && (
             <ParentDirRow onPress={onBack!} />
           )}
@@ -133,11 +158,11 @@ export function FileBrowser({
             />
           ))}
           {entries.length === 0 && (
-            <Text className="text-[#52525b] text-sm text-center mt-8">
+            <Text style={{ color: colors.text.dim, fontSize: 14, textAlign: 'center', marginTop: 32 }}>
               empty directory
             </Text>
           )}
-          <View className="h-8" />
+          <View style={{ height: 32 }} />
         </ScrollView>
       )}
     </View>
@@ -150,7 +175,9 @@ interface FileRowProps {
 }
 
 function FileRow({ entry, onPress }: FileRowProps) {
+  const colors = useColors();
   const isDir = entry.type === 'directory';
+  const [pressed, setPressed] = useState(false);
   const handlePress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
@@ -159,32 +186,49 @@ function FileRow({ entry, onPress }: FileRowProps) {
   return (
     <Pressable
       onPress={handlePress}
-      className="flex-row items-center px-4 py-3 border-b border-[#1a1a1f] active:bg-[#1e1e24]"
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border.default,
+        backgroundColor: pressed ? colors.bg.elevated : 'transparent',
+      }}
     >
-      <Text className="text-base w-8 text-center">
+      <Text style={{ fontSize: 16, width: 32, textAlign: 'center' }}>
         {isDir ? '\u{1F4C1}' : fileIcon(entry.name)}
       </Text>
-      <View className="flex-1 ml-2">
+      <View style={{ flex: 1, marginLeft: 8 }}>
         <Text
-          className={`text-sm font-mono ${isDir ? 'text-[#60a5fa] font-semibold' : 'text-[#fafafa]'}`}
+          style={{
+            fontSize: 14,
+            fontFamily: 'monospace',
+            color: isDir ? colors.accent.light : colors.text.primary,
+            fontWeight: isDir ? '600' : '400',
+          }}
           numberOfLines={1}
         >
           {entry.name}
         </Text>
-        <Text className="text-[#52525b] text-xs mt-0.5">
+        <Text style={{ color: colors.text.dim, fontSize: 12, marginTop: 2 }}>
           {isDir ? 'directory' : formatSize(entry.size)}
           {'  '}
           {formatDate(entry.modified)}
         </Text>
       </View>
       {isDir && (
-        <Text className="text-[#52525b] text-sm">{'\u203A'}</Text>
+        <Text style={{ color: colors.text.dim, fontSize: 14 }}>{'\u203A'}</Text>
       )}
     </Pressable>
   );
 }
 
 function ParentDirRow({ onPress }: { onPress: () => void }) {
+  const colors = useColors();
+  const [pressed, setPressed] = useState(false);
   const handlePress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
@@ -193,25 +237,42 @@ function ParentDirRow({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       onPress={handlePress}
-      className="flex-row items-center px-4 py-3 border-b border-[#1a1a1f] active:bg-[#1e1e24]"
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border.default,
+        backgroundColor: pressed ? colors.bg.elevated : 'transparent',
+      }}
     >
-      <Text className="text-base w-8 text-center">{'\u2190'}</Text>
-      <Text className="text-[#60a5fa] text-sm font-mono ml-2">..</Text>
+      <Text style={{ fontSize: 16, width: 32, textAlign: 'center' }}>{'\u2190'}</Text>
+      <Text style={{ color: colors.accent.light, fontSize: 14, fontFamily: 'monospace', marginLeft: 8 }}>..</Text>
     </Pressable>
   );
 }
 
 function FileContentView({ content }: { content: string }) {
+  const colors = useColors();
   const lines = content.split('\n');
   return (
-    <View className="bg-[#111113] rounded-lg p-3">
+    <View
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderRadius: 8,
+        padding: 12,
+      }}
+    >
       {lines.map((line, i) => (
-        <View key={i} className="flex-row">
-          <Text className="text-[#3f3f46] text-xs font-mono w-10 text-right mr-3">
+        <View key={i} style={{ flexDirection: 'row' }}>
+          <Text style={{ color: colors.text.dim, fontSize: 12, fontFamily: 'monospace', width: 40, textAlign: 'right', marginRight: 12 }}>
             {i + 1}
           </Text>
           <Text
-            className="text-[#e2e8f0] text-xs font-mono flex-1"
+            style={{ color: colors.text.secondary, fontSize: 12, fontFamily: 'monospace', flex: 1 }}
             selectable
           >
             {line || ' '}

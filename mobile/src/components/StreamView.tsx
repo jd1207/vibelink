@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useStreamStore } from "../store/stream-store";
+import { useColors } from "../store/settings";
 
 let WebView: React.ComponentType<any> | null = null;
 try {
@@ -17,17 +18,24 @@ interface Props {
   onReject?: (windowId: string) => void;
 }
 
+interface StreamColors {
+  bgPrimary: string;
+  bgSurface: string;
+  textMuted: string;
+  textDim: string;
+}
+
 // opens its own WebSocket to bridge for binary MJPEG frames
 // separate connection from the main useWebSocket hook (JSON events)
-function streamHtml(wsUrl: string, windowId: string): string {
+function streamHtml(wsUrl: string, windowId: string, c: StreamColors): string {
   return `<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   * { margin:0; padding:0; }
-  body { background:#0f172a; display:flex; flex-direction:column; height:100vh; }
+  body { background:${c.bgPrimary}; display:flex; flex-direction:column; height:100vh; }
   img { width:100%; object-fit:contain; flex:1; }
-  .stats { color:#94a3b8; font:11px monospace; padding:4px 8px; background:#1e293b; }
-  .empty { color:#475569; text-align:center; padding:40px; font:14px system-ui; }
+  .stats { color:${c.textMuted}; font:11px monospace; padding:4px 8px; background:${c.bgSurface}; }
+  .empty { color:${c.textDim}; text-align:center; padding:40px; font:14px system-ui; }
 </style></head><body>
 <div class="stats" id="s">connecting...</div>
 <img id="f" style="display:none" />
@@ -65,43 +73,44 @@ ws.onmessage = (e) => {
 }
 
 export function StreamView({ sessionId, windowId, wsUrl, onConfirm, onReject }: Props) {
+  const colors = useColors();
   const tab = useStreamStore((s) => s.streamTabs[sessionId]?.[windowId]);
 
   if (!tab) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" }}>
-        <Text style={{ color: "#475569" }}>stream not found</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg.primary }}>
+        <Text style={{ color: colors.text.dim }}>stream not found</Text>
       </View>
     );
   }
 
   if (tab.status === "error") {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" }}>
-        <Text style={{ color: "#f87171", fontSize: 14 }}>stream error</Text>
-        <Text style={{ color: "#94a3b8", fontSize: 12, marginTop: 8 }}>{tab.errorMessage}</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg.primary }}>
+        <Text style={{ color: colors.status.error, fontSize: 14 }}>stream error</Text>
+        <Text style={{ color: colors.text.muted, fontSize: 12, marginTop: 8 }}>{tab.errorMessage}</Text>
       </View>
     );
   }
 
   if (tab.status === "confirming") {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" }}>
-        <Text style={{ color: "#e2e8f0", fontSize: 14, marginBottom: 16 }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg.primary }}>
+        <Text style={{ color: colors.text.secondary, fontSize: 14, marginBottom: 16 }}>
           stream {tab.windowTitle}?
         </Text>
         <View style={{ flexDirection: "row", gap: 12 }}>
           <TouchableOpacity
             onPress={() => onConfirm?.(windowId)}
-            style={{ backgroundColor: "#2563eb", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 6 }}
+            style={{ backgroundColor: colors.accent.primary, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 6 }}
           >
-            <Text style={{ color: "#fff", fontSize: 14 }}>yes</Text>
+            <Text style={{ color: colors.text.onAccent, fontSize: 14 }}>yes</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onReject?.(windowId)}
-            style={{ backgroundColor: "#334155", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 6 }}
+            style={{ backgroundColor: colors.bg.elevated, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 6 }}
           >
-            <Text style={{ color: "#94a3b8", fontSize: 14 }}>cancel</Text>
+            <Text style={{ color: colors.text.muted, fontSize: 14 }}>cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -110,17 +119,24 @@ export function StreamView({ sessionId, windowId, wsUrl, onConfirm, onReject }: 
 
   if (!WebView) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" }}>
-        <Text style={{ color: "#94a3b8" }}>WebView not available (use dev client)</Text>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg.primary }}>
+        <Text style={{ color: colors.text.muted }}>WebView not available (use dev client)</Text>
       </View>
     );
   }
 
+  const streamColors: StreamColors = {
+    bgPrimary: colors.bg.primary,
+    bgSurface: colors.bg.surface,
+    textMuted: colors.text.muted,
+    textDim: colors.text.dim,
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#0f172a" }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <WebView
-        source={{ html: streamHtml(wsUrl, windowId) }}
-        style={{ flex: 1, backgroundColor: "#0f172a" }}
+        source={{ html: streamHtml(wsUrl, windowId, streamColors) }}
+        style={{ flex: 1, backgroundColor: colors.bg.primary }}
         javaScriptEnabled
         originWhitelist={["*"]}
       />
