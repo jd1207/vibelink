@@ -5,7 +5,7 @@ const env = process.env;
 export const config = {
   port: parseInt(env.PORT ?? "3400", 10),
   authToken: env.AUTH_TOKEN ?? "",
-  ipcSocketPath: env.IPC_SOCKET_PATH ?? "/tmp/vibelink.sock",
+  ipcSocketPath: env.IPC_SOCKET_PATH ?? "tcp:3401",
   scanRoots: env.SCAN_ROOTS ? env.SCAN_ROOTS.split(",") : [homedir()],
   scanMaxDepth: parseInt(env.SCAN_MAX_DEPTH ?? "3", 10),
   scanCacheTtlMs: parseInt(env.SCAN_CACHE_TTL_MS ?? "60000", 10),
