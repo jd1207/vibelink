@@ -19,8 +19,8 @@ const ToolActivity = React.memo(function ToolActivity({ block }: ToolActivityPro
   return (
     <View className="px-4 py-1">
       <Pressable onPress={toggle} className="flex-row items-center gap-2">
-        <View className={`flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${isComplete ? 'bg-emerald-900/30' : ''}`}
-          style={isComplete ? undefined : { backgroundColor: colors.border.subtle }}>
+        <View className="flex-row items-center gap-1.5 rounded-full px-3 py-1.5"
+          style={{ backgroundColor: isComplete ? colors.interactive.successTint : colors.border.subtle }}>
           {isComplete ? (
             <Text style={{ color: colors.status.success, fontSize: 14 }}>✓</Text>
           ) : (

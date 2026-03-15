@@ -32,7 +32,7 @@ export function FormRenderer({ fields, submitLabel, onInteraction }: FormRendere
       ))}
       <Pressable onPress={handleSubmit} className="rounded-xl py-3 items-center mt-3 active:opacity-80"
         style={{ backgroundColor: colors.accent.primary }}>
-        <Text className="font-semibold text-sm" style={{ color: colors.text.primary }}>{submitLabel ?? 'submit'}</Text>
+        <Text className="font-semibold text-sm" style={{ color: colors.text.onAccent }}>{submitLabel ?? 'submit'}</Text>
       </Pressable>
     </View>
   );

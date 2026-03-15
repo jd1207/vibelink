@@ -27,7 +27,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
     <View className={`px-4 py-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
       <View
         className="rounded-2xl px-4 py-2.5 max-w-[85%]"
-        style={{ backgroundColor: isUser ? colors.accent.primary : colors.bg.surface }}
+        style={{ backgroundColor: isUser ? colors.accent.userBubble : colors.bg.surface }}
       >
         <MarkdownContent text={message.content} isUser={isUser} />
         {message.isStreaming ? <AnimatedDots /> : null}

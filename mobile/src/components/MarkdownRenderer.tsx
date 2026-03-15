@@ -69,7 +69,7 @@ export function MarkdownContent({ text, isUser }: MarkdownContentProps) {
 function renderInline(text: string, isUser: boolean, colors: ThemePalette): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   const codeStyle = isUser ? undefined : { color: colors.code.inline };
-  const codeClass = isUser ? 'font-mono text-white/80 bg-black/20 text-xs' : 'font-mono bg-black/20 text-xs';
+  const codeClass = isUser ? 'font-mono text-white/80 text-xs' : 'font-mono text-xs';
   const linkStyle = isUser ? undefined : { color: colors.accent.light };
   const linkClass = isUser ? 'text-white/90 underline' : 'underline';
   const regex = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
@@ -79,7 +79,9 @@ function renderInline(text: string, isUser: boolean, colors: ThemePalette): Reac
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
     if (match[1]) {
-      parts.push(<Text key={match.index} className={codeClass} style={codeStyle}>{match[1]}</Text>);
+      parts.push(
+        <Text key={match.index} className={codeClass} style={[codeStyle, { backgroundColor: isUser ? 'rgba(255,255,255,0.2)' : colors.code.inlineOverlay }]}>{match[1]}</Text>
+      );
     } else if (match[2]) {
       parts.push(<Text key={match.index} className="font-bold">{match[2]}</Text>);
     } else if (match[3]) {
@@ -99,7 +101,7 @@ function CodeBlock({ code }: { code: string }) {
   }, [code]);
 
   return (
-    <Pressable onLongPress={handleCopy} className="bg-black/40 rounded-lg p-3 my-1">
+    <Pressable onLongPress={handleCopy} className="rounded-lg p-3 my-1" style={{ backgroundColor: colors.code.blockOverlay }}>
       <Text className="font-mono text-xs leading-4" selectable style={{ color: colors.code.text }}>{code}</Text>
       <Text className="text-[10px] mt-1" style={{ color: colors.text.dim }}>long press to copy</Text>
     </Pressable>

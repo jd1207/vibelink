@@ -98,7 +98,7 @@ export default function SetupScreen() {
         <View style={{ flex: 1, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
           <CameraViewComponent style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={handleQrScanned} />
           <Pressable onPress={() => setScanning(false)} style={{ position: 'absolute', top: 60, right: 20, padding: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8 }}>
-            <Text style={{ color: colors.text.primary, fontSize: 16 }}>cancel</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 16 }}>cancel</Text>
           </Pressable>
         </View>
       ) : null}
@@ -111,7 +111,7 @@ export default function SetupScreen() {
               if (!permission?.granted) { const r = await requestPermission(); if (!r.granted) return; }
               scannedRef.current = false; setScanning(true);
             }} className="p-4 rounded-xl items-center mb-6 active:opacity-80" style={{ backgroundColor: colors.accent.primary }}>
-              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>scan qr code</Text>
+              <Text className="text-base font-semibold" style={{ color: colors.text.onAccent }}>scan qr code</Text>
             </Pressable>
             <Text className="text-center mb-4" style={{ color: colors.text.muted }}>or enter manually</Text>
           </>
@@ -126,7 +126,7 @@ export default function SetupScreen() {
         {error ? <Text className="text-sm mb-4" style={{ color: colors.status.error }}>{error}</Text> : null}
         <Pressable onPress={() => handleConnect()} disabled={testing} className="rounded-xl py-4 items-center active:opacity-80"
           style={{ backgroundColor: testing ? colors.border.subtle : colors.accent.primary }}>
-          {testing ? <ActivityIndicator color={colors.text.primary} /> : <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>connect</Text>}
+          {testing ? <ActivityIndicator color={colors.text.onAccent} /> : <Text className="font-semibold text-base" style={{ color: colors.text.onAccent }}>connect</Text>}
         </Pressable>
       </View>
     </>
