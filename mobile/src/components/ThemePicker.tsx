@@ -35,7 +35,8 @@ export function ThemePicker({ visible, onClose, onDisconnect }: ThemePickerProps
               <View
                 style={{
                   width: 28, height: 28, borderRadius: 14, backgroundColor: t.accent,
-                  borderWidth: currentTheme === t.key ? 2 : 0, borderColor: colors.text.primary,
+                  borderWidth: currentTheme === t.key ? 2.5 : 0.5,
+                  borderColor: currentTheme === t.key ? colors.text.primary : colors.text.dim,
                 }}
               />
               <Text className="text-sm flex-1" style={{ color: colors.text.primary }}>

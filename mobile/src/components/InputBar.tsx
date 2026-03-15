@@ -41,7 +41,7 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
       />
       <Pressable onPress={handleSend} disabled={!canSend} className="rounded-xl px-5 py-3 active:opacity-80"
         style={{ backgroundColor: canSend ? colors.accent.primary : colors.border.subtle }}>
-        <Text className="font-semibold text-base" style={{ color: canSend ? colors.text.primary : colors.text.dim }}>send</Text>
+        <Text className="font-semibold text-base" style={{ color: canSend ? colors.text.onAccent : colors.text.dim }}>send</Text>
       </Pressable>
     </View>
   );

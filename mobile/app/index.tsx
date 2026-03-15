@@ -164,7 +164,7 @@ export default function SessionsScreen() {
             className="rounded-xl py-4 items-center active:opacity-80"
             style={{ backgroundColor: colors.accent.primary }}
           >
-            <Text className="font-semibold text-base" style={{ color: colors.text.primary }}>new chat</Text>
+            <Text className="font-semibold text-base" style={{ color: colors.text.onAccent }}>new chat</Text>
           </Pressable>
         </View>
       </View>
