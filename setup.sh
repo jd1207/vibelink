@@ -32,7 +32,7 @@ if [ -f "$SETTINGS_FILE" ]; then
   if command -v jq >/dev/null; then
     # merge hook into existing settings
     jq --arg cmd "$HOOK_CMD" '
-      .hooks.PermissionRequest = ((.hooks.PermissionRequest // []) + [{"type": "command", "command": $cmd}] | unique_by(.command))
+      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"type": "command", "command": $cmd}] | unique_by(.command))
     ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
   else
     echo "warning: jq not found, add permission hook manually to $SETTINGS_FILE"
@@ -42,7 +42,7 @@ else
   cat > "$SETTINGS_FILE" <<HOOKEOF
 {
   "hooks": {
-    "PermissionRequest": [
+    "PreToolUse": [
       {
         "type": "command",
         "command": "$HOOK_CMD"
