@@ -25,13 +25,17 @@ The project is open source and designed for developers who already use Claude Co
 
 ## How VibeLink Compares
 
-**VibeLink** — self-hosted, native mobile app, MIT license, MCP dynamic UI
-
-> **vs Claude Remote Control** — official Anthropic feature. Zero setup (`claude remote-control`), but requires Max/Pro subscription, routes through Anthropic's servers, no custom UI, not self-hosted, not open source.
-
-> **vs OpenClaw** — open source, Docker-based web UI. Not a native mobile app, no MCP integration. Had a WebSocket RCE vulnerability (CVE-2026-25253).
-
-**Only VibeLink has MCP-powered dynamic UI** — Claude can push interactive tables, forms, charts, and custom components directly to your phone. Fully self-hosted, nothing leaves your network.
+| | **VibeLink** | Remote Control | OpenClaw |
+|:--|:--:|:--:|:--:|
+| Self-hosted | :white_check_mark: | | :white_check_mark: |
+| Native mobile app | :white_check_mark: | :white_check_mark: | |
+| Open source | :white_check_mark: | | :white_check_mark: |
+| MIT license | :white_check_mark: | | |
+| Dynamic UI (MCP) | :white_check_mark: | | |
+| Free | :white_check_mark: | | :white_check_mark: |
+| Permission control | :white_check_mark: | :white_check_mark: | |
+| Multi-session | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Works offline | :white_check_mark: | | :white_check_mark: |
 
 ## Roadmap
 
