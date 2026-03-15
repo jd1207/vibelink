@@ -9,8 +9,22 @@ import {
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useConnectionStore } from '../src/store/connection';
+
+// conditional load — expo-camera requires native module compiled into APK
+let CameraViewComponent: React.ComponentType<any> | null = null;
+let useCameraPermissionsFn: (() => [any, () => Promise<any>]) | null = null;
+try {
+  const cam = require('expo-camera');
+  CameraViewComponent = cam.CameraView;
+  useCameraPermissionsFn = cam.useCameraPermissions;
+} catch {
+  // native module not available — QR scanning disabled
+}
+
+// stable hook reference so call order never changes between renders
+const useCameraPermissionsHook: () => [any, () => Promise<any>] =
+  useCameraPermissionsFn ?? (() => [null, async () => ({ granted: false })]);
 
 const BRIDGE_URL_KEY = 'vibelink_bridge_url';
 const AUTH_TOKEN_KEY = 'vibelink_auth_token';
@@ -35,7 +49,7 @@ export default function SetupScreen() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = useCameraPermissionsHook();
 
   const { setBridgeUrl: storeSetUrl, setAuthToken: storeSetToken } = useConnectionStore();
   const params = useLocalSearchParams<{ host?: string; port?: string; token?: string }>();
@@ -109,9 +123,9 @@ export default function SetupScreen() {
     <>
       <Stack.Screen options={{ title: 'setup', headerBackVisible: false }} />
 
-      {scanning ? (
+      {scanning && CameraViewComponent ? (
         <View style={{ flex: 1, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
-          <CameraView
+          <CameraViewComponent
             style={{ flex: 1 }}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -132,25 +146,29 @@ export default function SetupScreen() {
           connect to your bridge server to get started
         </Text>
 
-        <Pressable
-          onPress={async () => {
-            if (!permission?.granted) {
-              const result = await requestPermission();
-              if (!result.granted) return;
-            }
-            scannedRef.current = false;
-            setScanning(true);
-          }}
-          className="bg-[#3b82f6] p-4 rounded-xl items-center mb-6 active:opacity-80"
-        >
-          <Text className="text-[#fafafa] text-base font-semibold">
-            scan qr code
-          </Text>
-        </Pressable>
+        {CameraViewComponent ? (
+          <>
+            <Pressable
+              onPress={async () => {
+                if (!permission?.granted) {
+                  const result = await requestPermission();
+                  if (!result.granted) return;
+                }
+                scannedRef.current = false;
+                setScanning(true);
+              }}
+              className="bg-[#3b82f6] p-4 rounded-xl items-center mb-6 active:opacity-80"
+            >
+              <Text className="text-[#fafafa] text-base font-semibold">
+                scan qr code
+              </Text>
+            </Pressable>
 
-        <Text className="text-[#a1a1aa] text-center mb-4">
-          or enter manually
-        </Text>
+            <Text className="text-[#a1a1aa] text-center mb-4">
+              or enter manually
+            </Text>
+          </>
+        ) : null}
 
         <Text className="text-[#a1a1aa] text-sm mb-1.5">bridge url</Text>
         <TextInput
