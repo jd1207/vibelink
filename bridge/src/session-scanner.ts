@@ -9,6 +9,7 @@ export interface ClaudeSession {
   lastActivity: string;
   model: string | null;
   gitBranch: string | null;
+  name: string | null;
   alive: boolean;
   recentMessages: RecentMessage[];
 }
@@ -19,7 +20,7 @@ interface RecentMessage {
   timestamp: string;
 }
 
-interface PidEntry {
+export interface PidEntry {
   pid: number;
   sessionId: string;
   cwd: string;
@@ -32,7 +33,7 @@ function decodeDirName(name: string): string {
   return name.replace(/-/g, "/");
 }
 
-function isPidAlive(pid: number): boolean {
+export function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -41,7 +42,7 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-async function loadActivePids(): Promise<Map<string, PidEntry>> {
+export async function loadActivePids(): Promise<Map<string, PidEntry>> {
   const sessionsDir = join(homedir(), ".claude", "sessions");
   const map = new Map<string, PidEntry>();
 
@@ -64,6 +65,15 @@ async function loadActivePids(): Promise<Map<string, PidEntry>> {
   }
 
   return map;
+}
+
+export async function validatePid(pid: number): Promise<boolean> {
+  try {
+    const cmdline = await readFile(`/proc/${pid}/cmdline`, "utf-8");
+    return cmdline.includes("claude");
+  } catch {
+    return false;
+  }
 }
 
 // read the head (first ~8KB) and tail (last ~32KB) of a file
@@ -119,6 +129,7 @@ interface ParsedSession {
   model: string | null;
   gitBranch: string | null;
   projectPath: string | null;
+  name: string | null;
   recentMessages: RecentMessage[];
 }
 
@@ -128,6 +139,7 @@ async function parseSessionJsonl(filePath: string): Promise<ParsedSession> {
     model: null,
     gitBranch: null,
     projectPath: null,
+    name: null,
     recentMessages: [],
   };
 
@@ -144,6 +156,7 @@ async function parseSessionJsonl(filePath: string): Promise<ParsedSession> {
   let model: string | null = null;
   let gitBranch: string | null = null;
   let projectPath: string | null = null;
+  let name: string | null = null;
   const messages: RecentMessage[] = [];
 
   for (const line of lines) {
@@ -162,6 +175,10 @@ async function parseSessionJsonl(filePath: string): Promise<ParsedSession> {
 
     if (entry.gitBranch) {
       gitBranch = entry.gitBranch as string;
+    }
+
+    if (entry.name) {
+      name = entry.name as string;
     }
 
     const type = entry.type as string;
@@ -212,6 +229,7 @@ async function parseSessionJsonl(filePath: string): Promise<ParsedSession> {
     model,
     gitBranch,
     projectPath,
+    name,
     recentMessages: messages.slice(-5),
   };
 }
@@ -275,6 +293,7 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
         lastActivity: parsed.lastActivity,
         model: parsed.model,
         gitBranch: parsed.gitBranch,
+        name: parsed.name,
         alive: aliveSessionIds.has(sessionId),
         recentMessages: parsed.recentMessages,
       });
@@ -284,6 +303,26 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   return sessions;
+}
+
+export async function findJsonlPath(sessionId: string): Promise<string | null> {
+  const projectsDir = join(homedir(), ".claude", "projects");
+  let projectDirs: string[];
+  try {
+    projectDirs = await readdir(projectsDir);
+  } catch {
+    return null;
+  }
+  for (const dirName of projectDirs) {
+    const jsonlPath = join(projectsDir, dirName, `${sessionId}.jsonl`);
+    try {
+      await stat(jsonlPath);
+      return jsonlPath;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 // read conversation messages from a session JSONL for hydrating the phone UI
@@ -299,129 +338,92 @@ const HISTORY_USER_TURNS = 4;
 const HISTORY_TAIL_BYTES = 65536;
 
 export async function readSessionHistory(sessionId: string): Promise<HistoryMessage[]> {
-  const projectsDir = join(homedir(), ".claude", "projects");
+  const jsonlPath = await findJsonlPath(sessionId);
+  if (!jsonlPath) return [];
 
-  let projectDirs: string[];
+  // read only the tail of the file — recent messages are at the end
+  let content: string;
   try {
-    projectDirs = await readdir(projectsDir);
+    const fileStat = await stat(jsonlPath);
+    if (fileStat.size <= HISTORY_TAIL_BYTES) {
+      content = await readFile(jsonlPath, "utf-8");
+    } else {
+      const fh = await open(jsonlPath, "r");
+      try {
+        const buf = Buffer.alloc(HISTORY_TAIL_BYTES);
+        await fh.read(buf, 0, HISTORY_TAIL_BYTES, fileStat.size - HISTORY_TAIL_BYTES);
+        content = buf.toString("utf-8");
+        // trim partial first line
+        const nl = content.indexOf("\n");
+        if (nl >= 0) content = content.slice(nl + 1);
+      } finally {
+        await fh.close();
+      }
+    }
   } catch {
     return [];
   }
 
-  for (const dirName of projectDirs) {
-    const dirPath = join(projectsDir, dirName);
-    const jsonlPath = join(dirPath, `${sessionId}.jsonl`);
-
+  const allMessages: HistoryMessage[] = [];
+  for (const line of content.split("\n")) {
+    if (!line) continue;
+    let entry: Record<string, unknown>;
     try {
-      await stat(jsonlPath);
+      entry = JSON.parse(line);
     } catch {
       continue;
     }
 
-    // read only the tail of the file — recent messages are at the end
-    let content: string;
-    try {
-      const fileStat = await stat(jsonlPath);
-      if (fileStat.size <= HISTORY_TAIL_BYTES) {
-        content = await readFile(jsonlPath, "utf-8");
-      } else {
-        const fh = await open(jsonlPath, "r");
-        try {
-          const buf = Buffer.alloc(HISTORY_TAIL_BYTES);
-          await fh.read(buf, 0, HISTORY_TAIL_BYTES, fileStat.size - HISTORY_TAIL_BYTES);
-          content = buf.toString("utf-8");
-          // trim partial first line
-          const nl = content.indexOf("\n");
-          if (nl >= 0) content = content.slice(nl + 1);
-        } finally {
-          await fh.close();
-        }
-      }
-    } catch {
-      return [];
+    const type = entry.type as string;
+    if ((type === "user" || type === "assistant") && entry.message) {
+      allMessages.push({
+        type: type as "user" | "assistant",
+        message: entry.message as Record<string, unknown>,
+        timestamp: (entry.timestamp as string) ?? "",
+        sessionId,
+      });
     }
-
-    const allMessages: HistoryMessage[] = [];
-    for (const line of content.split("\n")) {
-      if (!line) continue;
-      let entry: Record<string, unknown>;
-      try {
-        entry = JSON.parse(line);
-      } catch {
-        continue;
-      }
-
-      const type = entry.type as string;
-      if ((type === "user" || type === "assistant") && entry.message) {
-        allMessages.push({
-          type: type as "user" | "assistant",
-          message: entry.message as Record<string, unknown>,
-          timestamp: (entry.timestamp as string) ?? "",
-          sessionId,
-        });
-      }
-    }
-
-    // find the last N user turns and include everything from that point
-    let userCount = 0;
-    let cutoff = allMessages.length;
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      if (allMessages[i].type === "user") {
-        userCount++;
-        if (userCount >= HISTORY_USER_TURNS) {
-          cutoff = i;
-          break;
-        }
-      }
-    }
-
-    return allMessages.slice(cutoff);
   }
 
-  return [];
+  // find the last N user turns and include everything from that point
+  let userCount = 0;
+  let cutoff = allMessages.length;
+  for (let i = allMessages.length - 1; i >= 0; i--) {
+    if (allMessages[i].type === "user") {
+      userCount++;
+      if (userCount >= HISTORY_USER_TURNS) {
+        cutoff = i;
+        break;
+      }
+    }
+  }
+
+  return allMessages.slice(cutoff);
 }
 
 // delete a session's JSONL file (and companion directory if it exists)
 export async function deleteClaudeSession(sessionId: string): Promise<boolean> {
-  const projectsDir = join(homedir(), ".claude", "projects");
+  const jsonlPath = await findJsonlPath(sessionId);
+  if (!jsonlPath) return false;
 
-  let projectDirs: string[];
+  // found it — delete the JSONL and any companion directory
+  await unlink(jsonlPath);
+
+  const dirPath = join(jsonlPath, "..");
+  const companionDir = join(dirPath, sessionId);
   try {
-    projectDirs = await readdir(projectsDir);
-  } catch {
-    return false;
-  }
-
-  for (const dirName of projectDirs) {
-    const dirPath = join(projectsDir, dirName);
-    const jsonlPath = join(dirPath, `${sessionId}.jsonl`);
-
-    try {
-      await stat(jsonlPath);
-    } catch {
-      continue;
-    }
-
-    // found it — delete the JSONL and any companion directory
-    await unlink(jsonlPath);
-
-    const companionDir = join(dirPath, sessionId);
-    try {
-      const s = await stat(companionDir);
-      if (s.isDirectory()) {
-        // remove companion dir contents then dir itself
-        const files = await readdir(companionDir);
-        for (const f of files) {
-          await unlink(join(companionDir, f)).catch(() => {});
-        }
-        await rmdir(companionDir).catch(() => {});
+    const s = await stat(companionDir);
+    if (s.isDirectory()) {
+      // remove companion dir contents then dir itself
+      const files = await readdir(companionDir);
+      for (const f of files) {
+        await unlink(join(companionDir, f)).catch(() => {});
       }
-    } catch {
-      // no companion dir
+      await rmdir(companionDir).catch(() => {});
     }
-
-    return true;
+  } catch {
+    // no companion dir
   }
 
-  return false;
+  return true;
 }
