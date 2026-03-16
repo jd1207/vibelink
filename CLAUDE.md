@@ -162,6 +162,29 @@ When you discover something that will bite us again (wrong port, env var gotcha,
 - `update_ui` MCP tool sends `ui_modify` event type (not `ui_update`) — mobile dispatcher must handle both
 - **Zustand selector infinite loop**: NEVER use `?? []` or `?? {}` as fallback in a Zustand selector — it creates a new reference every render, triggering an infinite re-render loop (`Maximum update depth exceeded`). Always use a stable constant defined outside the component (e.g. `EMPTY_EVENTS`, `EMPTY_TABS`, `EMPTY_PERMISSION_QUEUE`) from the store module
 
+## Known Issues (Phase 4 backlog)
+
+**User-reported bugs:**
+- Duplicate sessions on home screen after take-over (de-duplicates after `--continue`)
+- Chat doesn't auto-scroll to bottom when opening a resumed session
+- Long chats need lazy-loading (load recent messages first, older on scroll up)
+- Swipe-to-delete threshold too high — should reveal a tappable delete button on partial swipe
+
+**Session v2 polish:**
+- Message ordering after take-over can interleave old + new session events
+- Watch mode shows complete messages only (no token-by-token streaming from JSONL)
+- Large JSONL sessions (>64KB tail) may show incomplete history
+- Terminal gets no notification when phone takes over (Claude just exits)
+- Sessions need better naming (first user message or --name flag)
+- "Return to terminal" button (kill bridge process for `--continue`)
+
+**Mobile polish:**
+- Tab switching sluggishness (WebView mount/unmount) — keep WebView mounted but hidden
+- Keyboard delay + input bar positioning — manual Keyboard listeners are timing-sensitive
+
+**Separate feature:**
+- Permission/notification badges on session cards — spec at `docs/specs/session-notification-badges.md`
+
 ## Implementation Phases
 
 1. **Phase 1** (complete): Full stack — Bridge (with dashboard, diagnostics, restart), MCP server (render_ui, tabs, input), React Native app (Chat + Workspace tabs), permission approval via PreToolUse hook, setup script

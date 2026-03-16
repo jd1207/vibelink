@@ -397,6 +397,14 @@ See package READMEs for internals:
 - [ ] **npx vibelink-setup** -- cross-platform setup wizard, no git clone needed
 - [ ] **iOS build guide** -- contributor documentation for building on Mac
 
+## Known Issues
+
+- Duplicate sessions may appear on the home screen after taking over a terminal session (resolves after `--continue`)
+- Chat doesn't auto-scroll to the bottom when resuming a session
+- Long conversations can be slow to load — lazy-loading older messages is planned
+- Swipe-to-delete requires a long drag — partial swipe should reveal a delete button
+- Tab switching between chat and workspace has a brief delay (WebView remount)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code style and contribution guidelines.
