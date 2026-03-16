@@ -300,6 +300,26 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
     }
   }
 
+  // add alive PID entries that have no matching JSONL (e.g., fresh sessions
+  // where the PID session ID doesn't match any JSONL filename yet)
+  const foundSessionIds = new Set(sessions.map((s) => s.sessionId));
+  for (const [sid, entry] of activePids) {
+    if (foundSessionIds.has(sid)) continue;
+    if (!isPidAlive(entry.pid)) continue;
+    const projectName = entry.cwd.split("/").filter(Boolean).pop() ?? entry.cwd;
+    sessions.push({
+      sessionId: sid,
+      projectPath: entry.cwd,
+      projectName,
+      lastActivity: new Date(entry.startedAt).toISOString(),
+      model: null,
+      gitBranch: null,
+      name: null,
+      alive: true,
+      recentMessages: [],
+    });
+  }
+
   sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   return sessions;
