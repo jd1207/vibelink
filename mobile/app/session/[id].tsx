@@ -116,6 +116,10 @@ export default function SessionScreen() {
     if (oldId && oldId !== newSessionId) {
       bridgeApi.deleteSession(oldId).catch(() => {});
     }
+    // auto-scroll to bottom after swap
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }, 200);
   }, [activeSessionId]);
 
   // stream tab edit modal
