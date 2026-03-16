@@ -18,7 +18,6 @@ export function useEventDispatch(sessionId: string) {
   const setWatchState = useMessageStore((s) => s.setWatchState);
   const setWatchTakeOver = useMessageStore((s) => s.setWatchTakeOver);
   const updateWatchTimestamp = useMessageStore((s) => s.updateWatchTimestamp);
-  const copyEvents = useMessageStore((s) => s.copyEvents);
 
   const { addStreamTab, updateStreamTab, removeStreamTab, setWindowList } = useStreamStore.getState();
 
@@ -132,8 +131,6 @@ export function useEventDispatch(sessionId: string) {
       }
       case 'take_over_complete':
         if (data.sessionId && data.wsUrl) {
-          // copy events from watch session to new session so chat history persists
-          copyEvents(sessionId, String(data.sessionId));
           setWatchTakeOver(sessionId, String(data.sessionId), String(data.wsUrl));
         }
         break;
@@ -165,7 +162,7 @@ export function useEventDispatch(sessionId: string) {
         });
         break;
     }
-  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, pushPermission, addTab, setMetadata, updateUsage, setCanvas, setWatchState, setWatchTakeOver, updateWatchTimestamp, copyEvents]);
+  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, pushPermission, addTab, setMetadata, updateUsage, setCanvas, setWatchState, setWatchTakeOver, updateWatchTimestamp]);
 
   return dispatch;
 }
