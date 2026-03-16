@@ -7,8 +7,21 @@ export function useStreaming(sessionId: string): ChatMessage[] {
   const lastProcessedRef = useRef(0);
   const messagesRef = useRef<ChatMessage[]>([]);
   const streamBufferRef = useRef('');
+  const prevSessionIdRef = useRef(sessionId);
 
   return useMemo(() => {
+    // reset refs when sessionId changes (e.g. after take-over navigation)
+    if (prevSessionIdRef.current !== sessionId) {
+      prevSessionIdRef.current = sessionId;
+      lastProcessedRef.current = 0;
+      messagesRef.current = [];
+      streamBufferRef.current = '';
+    }
+
+    if (eventsLength === 0 && lastProcessedRef.current === 0) {
+      return messagesRef.current;
+    }
+
     if (eventsLength === lastProcessedRef.current) {
       return messagesRef.current;
     }
