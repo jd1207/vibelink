@@ -6,7 +6,8 @@ import { useSessionStore, Session, SessionType } from '../src/store/sessions';
 import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
-import { ThemePicker } from '../src/components/ThemePicker';
+import { SettingsSheet } from '../src/components/SettingsSheet';
+import { SessionSkeleton } from '../src/components/SkeletonPulse';
 import { SessionRow } from '../src/components/SessionRow';
 import { useColors } from '../src/store/settings';
 import type { ClaudeSession, DisplaySession } from '../src/types/session-list';
@@ -190,9 +191,10 @@ export default function SessionsScreen() {
       }} />
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         {loading && (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color={colors.accent.primary} />
-            <Text className="mt-3 text-sm" style={{ color: colors.text.subtle }}>scanning sessions...</Text>
+          <View className="flex-1 pt-4">
+            <SessionSkeleton />
+            <SessionSkeleton />
+            <SessionSkeleton />
           </View>
         )}
         {error && !loading && (
@@ -212,7 +214,7 @@ export default function SessionsScreen() {
           </Pressable>
         </View>
       </View>
-      <ThemePicker visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
+      <SettingsSheet visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
     </>
   );
 }
