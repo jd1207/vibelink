@@ -364,18 +364,19 @@ See package READMEs for internals:
 - [x] **Dashboard** -- web UI for managing sessions and debugging (http://localhost:3400/dashboard)
 - [x] **QR Code Setup** -- scan to connect, vibelink:// deep links, cross-platform setup scripts
 - [x] **Auto-Reconnect** -- WebSocket reconnects with event replay on disconnect
-- [x] **Session Browser** -- lists all Claude Code sessions on the system, resume with conversation history
-- [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
+- [x] **Session Browser** -- lists all Claude Code sessions, watch live terminal sessions, take over from phone, seamless phone/terminal switching with `--continue`
+- [x] **Theme System** -- 5 themes (Claude Code, Claude Chat, Claude Chat Dark, GPT, Midnight), zero hardcoded colors, instant switching
 - [x] **File Browser** -- browse project files in workspace, view contents, render markdown
 - [x] **Viewport Toggle** -- switch workspace between mobile and 1280px desktop width
+- [x] **Settings Sheet** -- bridge URL, connection status, theme picker, disconnect in one place
+- [x] **Skeleton Loading** -- pulse animation loading states instead of spinners
 
 ### Now
 
-- [ ] **Session browser v2** -- attach to live running CLI sessions (bidirectional), not just view history. Session multiplexing so phone and terminal share the same Claude process
-- [ ] **UI quality of life** -- loading states, smoother transitions, polish rough edges
-- [ ] **Settings menu upgrade** -- show bridge URL, connection status, theme picker, and session info in one place
+- [ ] **Session polish** -- fix duplicate sessions on take-over, auto-scroll to bottom on resume, lazy-load old messages for long chats, smoother swipe-to-delete
+- [ ] **Notification badges** -- pending permission count and unread event indicators on session cards
 - [ ] **Smarter system prompt** -- richer context injection so Claude makes better use of workspace tools
-- [ ] **Permission approvals outside chat** -- approve tool calls from home screen or notification-style UI
+- [ ] **Tab performance** -- keep WebView mounted when switching chat/workspace to avoid reload delay
 
 ### Next
 
