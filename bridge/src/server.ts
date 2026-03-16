@@ -442,6 +442,27 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   expressApp.get("/claude-sessions", async (_req, res) => {
     try {
       const sessions = await scanClaudeSessions();
+
+      // auto-clean stale bridge sessions: if a terminal CLI process is alive
+      // for the same project as a bridge session, the user went back to terminal
+      const bridgeSessions = sessionManager.list();
+      for (const bs of bridgeSessions) {
+        const full = sessionManager.get(bs.id);
+        if (!full || full.isWatchSession) continue;
+        const conflict = sessions.find(
+          (cs) => cs.alive && cs.projectPath === bs.projectPath && full.process.alive
+        );
+        if (conflict) {
+          const bridgePid = full.process.pid;
+          const pids = await loadActivePids();
+          const conflictPid = pids.get(conflict.sessionId)?.pid;
+          if (conflictPid && conflictPid !== bridgePid) {
+            console.log(`[sessions] auto-cleaning stale bridge session ${bs.id.slice(0, 8)} — terminal resumed in ${bs.projectPath}`);
+            sessionManager.delete(bs.id);
+          }
+        }
+      }
+
       res.json(sessions);
     } catch (err) {
       console.error("[claude-sessions] scan failed:", err);

@@ -90,11 +90,11 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
         <Pressable
           onPress={handleTakeOver}
           style={{
-            backgroundColor: colors.accent.dark, borderRadius: 8,
-            paddingHorizontal: 14, paddingVertical: 8,
+            backgroundColor: colors.accent.primary, borderRadius: 8,
+            paddingHorizontal: 16, paddingVertical: 10,
           }}
         >
-          <Text style={{ color: colors.accent.light, fontSize: 13, fontWeight: '600' }}>take over</Text>
+          <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>take over</Text>
         </Pressable>
       </View>
     );
@@ -127,11 +127,11 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
           <Pressable
             onPress={handleResume}
             style={{
-              backgroundColor: colors.accent.dark, borderRadius: 8,
-              paddingHorizontal: 14, paddingVertical: 8,
+              backgroundColor: colors.accent.primary, borderRadius: 8,
+              paddingHorizontal: 16, paddingVertical: 10,
             }}
           >
-            <Text style={{ color: colors.accent.light, fontSize: 13, fontWeight: '600' }}>resume</Text>
+            <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>resume</Text>
           </Pressable>
         ) : null}
       </View>

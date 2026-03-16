@@ -7,7 +7,7 @@ import { useColors } from '../store/settings';
 
 const SWIPE_THRESHOLD = -80;
 
-function StatusIndicator({ sessionType }: { sessionType: SessionType }) {
+function StatusIndicator({ sessionType, accentColor }: { sessionType: SessionType; accentColor: string }) {
   if (sessionType === 'terminal') {
     return (
       <View
@@ -18,14 +18,7 @@ function StatusIndicator({ sessionType }: { sessionType: SessionType }) {
   if (sessionType === 'vibelink') {
     return (
       <View
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: 5,
-          borderWidth: 2,
-          borderColor: '#60a5fa',
-          backgroundColor: 'transparent',
-        }}
+        style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: accentColor }}
       />
     );
   }
@@ -49,9 +42,9 @@ function TypeBadge({ sessionType, colors }: { sessionType: SessionType; colors: 
     return (
       <View
         className="rounded px-1.5 py-0.5"
-        style={{ backgroundColor: 'rgba(96, 165, 250, 0.15)' }}
+        style={{ backgroundColor: colors.accent.primary + '26' }}
       >
-        <Text style={{ color: '#60a5fa', fontSize: 11 }}>vibelink</Text>
+        <Text style={{ color: colors.accent.primary, fontSize: 11 }}>vibelink</Text>
       </View>
     );
   }
@@ -123,7 +116,7 @@ export function SessionRow({ item, onPress, onSwipeAction, swipeLabel, dimmed }:
         >
           <View className="flex-row items-center justify-between mb-1">
             <View className="flex-row items-center gap-2 flex-1">
-              <StatusIndicator sessionType={item.sessionType} />
+              <StatusIndicator sessionType={item.sessionType} accentColor={colors.accent.primary} />
               <Text
                 className="font-medium text-base flex-1"
                 numberOfLines={1}
