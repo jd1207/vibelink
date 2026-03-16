@@ -859,17 +859,19 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
             wsTracker.broadcastToSession(newSession.id, { type: "stream_stopped", windowId });
           });
 
-          // clean up the old watch session
-          if (session.isWatchSession) {
-            sessionManager.delete(sessionId);
-          }
-
+          // send take_over_complete BEFORE cleaning up (WS needs to be active)
           const wsUrl = `ws://localhost:${port}/ws/${newSession.id}`;
           ws.send(JSON.stringify({
             type: "take_over_complete",
             sessionId: newSession.id,
             wsUrl,
           }));
+
+          // clean up the old watch session after sending
+          if (session.isWatchSession) {
+            // delay cleanup slightly to ensure message is sent
+            setTimeout(() => sessionManager.delete(sessionId), 500);
+          }
         } catch (err: any) {
           ws.send(JSON.stringify({
             type: "take_over_failed",
