@@ -467,8 +467,9 @@ export async function readSessionHistory(sessionId: string): Promise<HistoryMess
   }
 
   // find the last N user turns and include everything from that point
+  // if fewer than N turns exist, return all messages
   let userCount = 0;
-  let cutoff = allMessages.length;
+  let cutoff = 0;
   for (let i = allMessages.length - 1; i >= 0; i--) {
     if (allMessages[i].type === "user") {
       userCount++;
