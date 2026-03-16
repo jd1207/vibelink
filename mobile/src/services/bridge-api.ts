@@ -86,10 +86,14 @@ export const bridgeApi = {
     }));
   },
 
-  createSession: async (projectPath: string, skipPermissions?: boolean): Promise<Session> => {
+  createSession: async (projectPath: string, skipPermissions?: boolean, resumeSessionId?: string): Promise<Session> => {
     const raw = await apiFetch<{ sessionId: string; wsUrl: string }>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ projectPath, skipPermissions: skipPermissions ?? false }),
+      body: JSON.stringify({
+        projectPath,
+        skipPermissions: skipPermissions ?? false,
+        ...(resumeSessionId ? { resumeSessionId } : {}),
+      }),
     });
     const name = projectPath.split('/').filter(Boolean).pop() ?? projectPath;
     return {
@@ -114,4 +118,19 @@ export const bridgeApi = {
 
   viewFile: (sessionId: string, path: string): Promise<ViewFileResult> =>
     apiFetch<ViewFileResult>(`/sessions/${sessionId}/files/view?path=${encodeURIComponent(path)}`),
+
+  watchSession: (claudeSessionId: string): Promise<{ sessionId: string; wsUrl: string }> =>
+    apiFetch<{ sessionId: string; wsUrl: string }>('/sessions/watch', {
+      method: 'POST',
+      body: JSON.stringify({ claudeSessionId }),
+    }),
+
+  endTerminalSession: (claudeSessionId: string): Promise<void> =>
+    apiFetch<void>('/sessions/end-terminal', {
+      method: 'POST',
+      body: JSON.stringify({ claudeSessionId }),
+    }),
+
+  getClaudeSessions: (): Promise<any[]> =>
+    apiFetch<any[]>('/claude-sessions'),
 };
