@@ -53,6 +53,15 @@ export const themes = {
     code: { text: '#E2E8F0', inline: '#A5B4FC', background: '#0F172A', lineNumber: '#52525B', added: '#4ADE80', removed: '#F87171', blockOverlay: 'rgba(0,0,0,0.4)', inlineOverlay: 'rgba(0,0,0,0.2)' },
     interactive: { selected: '#1E3A5F', hover: '#18181B', successTint: 'rgba(6, 78, 59, 0.3)' },
   },
+  'claude-chat-dark': {
+    mode: 'dark' as const,
+    bg: { primary: '#2A2A2A', secondary: '#1F1F1E', surface: '#333330', elevated: '#3D3D39', inset: '#1F1F1E', badge: '#3D3D39' },
+    text: { primary: '#ECECEA', secondary: '#D4D4D0', muted: '#A8A8A0', subtle: '#807E78', dim: '#5C5B56', onAccent: '#FFFFFF' },
+    accent: { primary: '#D97757', light: '#E8A088', lighter: '#F0C4B0', dark: '#C15F3C', userBubble: '#D97757', assistantBubble: '#333330' },
+    status: darkStatus, border: { default: '#4A4A44', subtle: '#3D3D39' },
+    code: { text: '#D4D4D0', inline: '#E8A088', background: '#1F1F1E', lineNumber: '#5C5B56', added: '#4ADE80', removed: '#F87171', blockOverlay: 'rgba(0,0,0,0.4)', inlineOverlay: 'rgba(0,0,0,0.2)' },
+    interactive: { selected: '#3D2518', hover: '#333330', successTint: 'rgba(6, 78, 59, 0.3)' },
+  },
 };
 
 export type ThemeKey = keyof typeof themes;
@@ -63,4 +72,5 @@ export const themeList: { key: ThemeKey; name: string; accent: string }[] = [
   { key: 'claude-chat', name: 'claude chat', accent: '#FAF9F5' },
   { key: 'gpt', name: 'gpt', accent: '#10A37F' },
   { key: 'midnight', name: 'midnight', accent: '#3B82F6' },
+  { key: 'claude-chat-dark', name: 'claude chat dark', accent: '#2A2A2A' },
 ];
