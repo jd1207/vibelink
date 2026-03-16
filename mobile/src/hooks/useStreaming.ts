@@ -1,49 +1,50 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMessageStore, ClaudeEvent, ChatMessage } from '../store/messages';
 import { parseContentBlocks } from './parseContentBlocks';
 
 export function useStreaming(sessionId: string): ChatMessage[] {
-  const eventsLength = useMessageStore((s) => s.events[sessionId]?.length ?? 0);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const lastProcessedRef = useRef(0);
-  const messagesRef = useRef<ChatMessage[]>([]);
   const streamBufferRef = useRef('');
   const prevSessionIdRef = useRef(sessionId);
 
-  // force re-render when events first arrive (fixes watch session initial load)
-  const [, setTick] = useState(0);
+  // subscribe to event changes and process incrementally
   useEffect(() => {
-    if (eventsLength > 0 && lastProcessedRef.current === 0) {
-      setTick((t) => t + 1);
-    }
-  }, [eventsLength]);
-
-  return useMemo(() => {
-    // reset refs when sessionId changes (e.g. after take-over swap)
+    // reset on session change
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
       lastProcessedRef.current = 0;
-      messagesRef.current = [];
       streamBufferRef.current = '';
+      setMessages([]);
     }
 
-    if (eventsLength === lastProcessedRef.current) {
-      return messagesRef.current;
-    }
+    const processNewEvents = () => {
+      const events = useMessageStore.getState().events[sessionId] ?? [];
+      if (events.length <= lastProcessedRef.current) return;
 
-    const events = useMessageStore.getState().events[sessionId] ?? [];
-    const result: ChatMessage[] = [...messagesRef.current];
-    const newEvents = events.slice(lastProcessedRef.current);
+      const newEvents = events.slice(lastProcessedRef.current);
+      lastProcessedRef.current = events.length;
 
-    for (const raw of newEvents) {
-      const evt = raw as ClaudeEvent;
-      if (evt.type !== 'claude_event' || !evt.event) continue;
-      processEvent(evt, result, streamBufferRef);
-    }
+      setMessages((prev) => {
+        const result = [...prev];
+        for (const raw of newEvents) {
+          const evt = raw as ClaudeEvent;
+          if (evt.type !== 'claude_event' || !evt.event) continue;
+          processEvent(evt, result, streamBufferRef);
+        }
+        return result;
+      });
+    };
 
-    lastProcessedRef.current = events.length;
-    messagesRef.current = result;
-    return result;
-  }, [eventsLength, sessionId]);
+    // process any existing events immediately
+    processNewEvents();
+
+    // subscribe to store changes
+    const unsub = useMessageStore.subscribe(() => processNewEvents());
+    return () => unsub();
+  }, [sessionId]);
+
+  return messages;
 }
 
 function processEvent(
@@ -83,7 +84,6 @@ function processEvent(
       const blocks = parseContentBlocks(msg.message?.content);
       const text = blocks.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
 
-      // use streamed text if we have it, otherwise use the assistant message text
       const finalText = streamBufferRef.current || text;
       streamBufferRef.current = '';
 
@@ -114,7 +114,6 @@ function processEvent(
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text ?? '')
           .join('');
-        // messages containing tool_results: no bubble, but keep contentBlocks so tool_use can mark complete
         const hasToolResults = userEvt.message.content.some((b: any) => b.type === 'tool_result');
         if (hasToolResults) {
           blocks = parseContentBlocks(userEvt.message.content as unknown[]);
@@ -140,7 +139,6 @@ function processEvent(
     }
 
     case 'result': {
-      // force-finalize any streaming message
       const lastMsg = result[result.length - 1];
       if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
         result[result.length - 1] = { ...lastMsg, isStreaming: false };
@@ -151,14 +149,11 @@ function processEvent(
   }
 }
 
-// detect system-injected content that shouldn't render as a user bubble
-// (skill instructions, system reminders, hook output, etc.)
 function isSystemInjected(text: string): boolean {
   if (text.startsWith('<command-name>')) return true;
   if (text.startsWith('<system-reminder>')) return true;
   if (text.startsWith('<EXTREMELY')) return true;
   if (/^---\s*\nname:/.test(text)) return true;
-  // long text with many markdown headers is likely skill/system content
   if (text.length > 500) {
     const headerCount = (text.match(/^#{1,3}\s/gm) || []).length;
     if (headerCount >= 3) return true;
