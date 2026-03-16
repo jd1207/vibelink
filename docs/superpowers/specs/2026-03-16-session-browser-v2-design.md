@@ -31,9 +31,11 @@ Every session is in exactly one of three states:
 
 | State | Badge | Indicator | Where it lives | Tap action |
 |-------|-------|-----------|---------------|------------|
-| **terminal** | green "terminal" | green dot with glow | Active list | Watch mode (read-only + take-over banner) |
-| **vibelink** | blue "vibelink" | blue dot with glow | Active list | Chat mode (full control, auto-resumes) |
-| **idle** | none | gray dot, no glow | "Other sessions" (collapsed) | Tap to resume as vibelink |
+| **terminal** | green "terminal" | green filled dot with glow | Active list | Watch mode (read-only + take-over banner) |
+| **vibelink** | blue "vibelink" | blue ring (hollow dot) with glow | Active list | Chat mode (full control, auto-resumes) |
+| **idle** | gray "resume" label | gray dash | "Other sessions" | Tap to resume as vibelink |
+
+**Accessibility:** Status is communicated through both color AND shape (filled dot vs ring vs dash) so colorblind users can distinguish states. The type badge text ("terminal"/"vibelink"/"resume") provides a third signal. Screen reader labels on each row: "[Project name], [state], [last message], [time ago]".
 
 A vibelink session stays vibelink (active, blue) even after Claude's process exits. It only becomes idle when the user explicitly taps "end."
 
@@ -44,19 +46,28 @@ A terminal session becomes idle when the terminal Claude process exits (PID dies
 **Active area (top):** All terminal + vibelink sessions, sorted by last activity descending, interleaved (not grouped by type).
 
 Each row shows:
-- Status dot (green/blue with glow)
+- Status indicator (filled dot / ring / dash — see states table)
 - Project name (or `--name` if Claude was started with one)
-- Last message preview (truncated)
+- Last message preview (truncated) — shows last assistant message for better differentiation
 - Relative time ("2m ago")
-- Badges: type (terminal/vibelink), model (opus/sonnet), git branch
-- "end" button (right side)
+- Badges: type (terminal/vibelink), git branch
+- Model badge omitted from default view to reduce clutter (available in session detail metadata panel)
 
-**Other sessions (collapsible, collapsed by default):** Idle sessions sorted by last activity. Each row shows:
-- Gray dot (no glow)
+**"End" action:** Swipe-to-reveal gesture (not a visible button) to prevent accidental taps. Swiping reveals a red "End" button. For terminal sessions, tapping "End" shows a confirmation: "This will kill the terminal Claude process. Continue?" For vibelink sessions, no confirmation needed (non-destructive to other devices).
+
+**Other sessions (collapsible):** Idle sessions sorted by last activity. Section header always visible showing count: "Other sessions (5)" with chevron. Auto-expands when no active sessions exist.
+
+Each idle row shows:
+- Gray dash indicator
 - Project name, last message preview, relative time
-- "delete" button (right side) — permanently deletes the JSONL file, conversation cannot be recovered
-- Slightly dimmed (opacity ~0.7)
+- Gray "resume" label (right side) — signals tappability
+- "delete" action via swipe gesture — shows confirmation: "This permanently deletes the conversation. Continue?"
 - Tapping a row resumes it as a vibelink session (moves to active area)
+
+**Empty states:**
+- No active + has idle: "Other sessions" auto-expands, message above: "No active sessions. Tap one below to resume, or start new."
+- No active + no idle: Full-screen guidance: "Start Claude in your terminal to see sessions here, or tap + to create one."
+- Has active + no idle: No "Other sessions" section shown.
 
 **Polling:** Refresh session list every 5 seconds (unchanged from current).
 
@@ -64,28 +75,34 @@ Each row shows:
 
 New bridge component that enables watching terminal sessions from the phone.
 
-**WebSocket routing:** When the phone taps a terminal session, the bridge creates a lightweight "watch session" — a bridge session with an EventBuffer but no Claude subprocess. The phone connects to `/ws/<watchSessionId>` using the standard WebSocket path. This reuses the existing EventBuffer, `broadcastToSession`, and reconnect infrastructure. The watch session is cleaned up when the phone disconnects or navigates away.
+**Watch session creation:** Phone calls `POST /sessions/watch` REST endpoint with `{ claudeSessionId }`. Bridge creates a lightweight "watch session" — a bridge session with an EventBuffer but no Claude subprocess — and returns `{ sessionId, wsUrl }`. Phone then connects to `/ws/<watchSessionId>` using the standard WebSocket path. This reuses the existing EventBuffer, `broadcastToSession`, and reconnect infrastructure.
 
-**JSONL path resolution:** The bridge receives a `claudeSessionId` and must find the corresponding JSONL file. It scans `~/.claude/projects/*/` directories for a file named `<claudeSessionId>.jsonl` — the same scan pattern used by `readSessionHistory()` in `session-scanner.ts`. If the file is not found, the bridge responds with a `watch_error` event.
+Using REST (not WebSocket) for watch creation avoids routing ambiguity — the phone doesn't need an existing WS connection to initiate a watch.
+
+**JSONL path resolution:** The bridge scans `~/.claude/projects/*/` directories for a file named `<claudeSessionId>.jsonl` — the same scan pattern used by `readSessionHistory()` in `session-scanner.ts`. If the file is not found, the REST endpoint returns `{ error: "JSONL file not found" }` and no watch session is created. The phone shows a toast: "Session data not found" and stays on the session list.
+
+**PID lookup and validation:** The bridge finds the terminal PID by scanning `~/.claude/sessions/*.json` files for the entry whose `sessionId` field matches the `claudeSessionId` (reuses `loadActivePids()` from `session-scanner.ts`). Before sending any signal to a PID, the bridge validates the process is actually Claude by reading `/proc/<pid>/cmdline` and checking it contains `claude`. If validation fails, the PID is treated as stale (session already dead). This prevents killing unrelated processes when PIDs are recycled.
 
 **Lifecycle:**
-1. Phone taps a terminal session → sends `watch_session` with `claudeSessionId`
-2. Bridge creates a watch session (no subprocess), returns `sessionId` and `wsUrl`
-3. Phone connects to the watch session's WebSocket
-4. Bridge reads the tail of the JSONL (last 65KB), parses recent messages, pushes to phone as `claude_event` messages via the watch session's EventBuffer
-5. Bridge starts `fs.watch()` on the JSONL file
-6. On file change: bridge reads new bytes from the last-known file offset, parses complete JSONL lines, pushes new events as `claude_event` messages
-7. After each file change, bridge also checks `isPidAlive()` for the terminal PID. If the PID is dead, bridge emits `watch_ended` with reason `process_exited`
-8. Bridge also polls PID liveness every 2 seconds while watching (catches cases where the process exits without a final JSONL write)
+1. Phone calls `POST /sessions/watch` with `claudeSessionId` → gets `{ sessionId, wsUrl }`
+2. Phone connects to the watch session's WebSocket
+3. Bridge reads the tail of the JSONL (last 65KB), parses up to last 4 user turns (same depth as `readSessionHistory()`), pushes to phone as `claude_event` messages via the watch session's EventBuffer
+4. Bridge starts `fs.watch()` on the JSONL file
+5. On file change: bridge `stat()`s the file to get current size. If size > last offset, reads delta bytes, parses complete JSONL lines, pushes new events. If size < last offset (truncation), resets offset to 0 and re-reads. If size == last offset, skips (spurious event).
+6. After each file change, bridge also checks `isPidAlive()` for the terminal PID (with `/proc/<pid>/cmdline` validation). If the PID is dead or not Claude, bridge emits `watch_ended` with reason `process_exited`.
+7. Bridge polls PID liveness every 2 seconds while watching (catches exits without a final JSONL write)
+8. If `fs.watch()` fires no events for 10 seconds despite PID being alive, bridge falls back to `fs.watchFile()` polling (2-second interval) for resilience
 9. When phone disconnects or navigates back to list, bridge stops the watcher and removes the watch session
 
-**PID lookup:** The bridge finds the terminal PID by scanning `~/.claude/sessions/*.json` files for the entry whose `sessionId` field matches the `claudeSessionId`. This reuses the existing `loadActivePids()` function from `session-scanner.ts`.
+**Watch session cleanup:** A `ws.on('close')` handler specific to watch sessions triggers cleanup (stop watcher, remove session). A reaper runs every 10 seconds and removes watch sessions with 0 connected clients for more than 5 seconds (handles phone crashes where WS close isn't clean, detected by heartbeat timeout).
 
-**Important limitation:** JSONL is written after complete messages, not during streaming. The phone sees complete turns (user message → full assistant response), not token-by-token streaming. This is acceptable for v1 — the UX is "watching a conversation unfold" not "watching Claude think."
+**Concurrency limits:** Maximum 5 concurrent watch sessions. If a JSONL file is already being watched by another session, the watcher is shared (fan out events to multiple watch sessions) rather than creating duplicate `fs.watch()` instances.
 
-**fs.watch reliability:** This assumes Claude CLI appends to the JSONL file in place (not atomic rename). If the write strategy changes in a future Claude version, the watcher may need `fs.watchFile()` (polling) as a fallback.
+**Important limitation:** JSONL is written after complete messages, not during streaming. The phone sees complete turns (user message → full assistant response), not token-by-token streaming. When a user message appears in the JSONL without a subsequent assistant response, the phone shows a "Claude is responding..." indicator in the message list until the response appears.
 
-**Implementation:** New file `bridge/src/jsonl-watcher.ts` — a class that wraps `fs.watch()`, tracks file offset, reads incremental bytes, parses JSONL lines, checks PID liveness, and emits structured events.
+**fs.watch reliability:** This assumes Claude CLI appends to the JSONL file in place (not atomic rename). The `fs.watchFile()` fallback (polling) handles cases where inotify is unreliable.
+
+**Implementation:** New file `bridge/src/jsonl-watcher.ts` — a class that wraps `fs.watch()` with `fs.watchFile()` fallback, tracks file offset with stat-based delta reads, validates PIDs via `/proc/<pid>/cmdline`, and emits structured events.
 
 ### Watch Mode (Terminal Session Detail)
 
@@ -94,12 +111,17 @@ When the user taps a terminal session:
 - **Same chat UI** as vibelink sessions — messages, tool calls, code blocks render identically
 - **No input bar** — the bottom of the screen shows a sticky banner instead
 - **Banner:** "Live from terminal" on the left, "Take Over" button on the right
+- **Last update timestamp** in the banner: "Last update: 2m ago" — so user knows if session is actively being used or sitting idle
 - Messages appear as the JSONL updates (complete turns, not streaming)
+- When waiting for Claude's response (user message without subsequent assistant message): "Claude is responding..." indicator
 - Workspace tab available if applicable
 - Events use the same `claude_event` type as vibelink sessions (no separate `watch_event` type). The mobile message store and rendering pipeline handle them identically.
 
+**Watch error handling:** If the REST `POST /sessions/watch` returns an error, the phone shows a toast ("Session data not found") and stays on the session list. If the WebSocket connection fails after creation, the phone shows an inline error in the session detail view with a "Retry" button.
+
 **Session-ended-while-watching:** If the terminal Claude process exits while the user is in watch mode (detected by the watcher's PID health check):
 - Bridge sends `watch_ended` with reason `process_exited`
+- A visual separator appears in the message list: "Terminal session ended"
 - Banner transitions from "Live from terminal — Take Over" to "Session ended — Resume"
 - Tapping "Resume" creates a vibelink session with `--resume`, same as take-over but without killing a process
 - This handles the case where the terminal user naturally exits Claude
@@ -108,18 +130,24 @@ When the user taps a terminal session:
 
 1. User taps "Take Over" on the watch mode banner
 2. Confirmation dialog: "This will end the terminal session. Continue?"
-3. On confirm: phone sends `take_over` message to bridge
-4. Bridge looks up the terminal PID by scanning `~/.claude/sessions/*.json` for the entry matching the `claudeSessionId`
-5. Bridge sends `SIGTERM` to the PID
-6. Bridge waits up to 5 seconds for process exit, then `SIGKILL` if needed
-7. Bridge stops the JSONL watcher and removes the watch session
-8. Bridge creates a new vibelink session with `--resume <sessionId>` and `skipPermissions` inherited
-9. Hydrates the event buffer with recent conversation history
-10. Bridge sends `take_over_complete` with the new `sessionId` and `wsUrl`
-11. Phone closes the watch session WebSocket, opens a new WebSocket to the vibelink session's `wsUrl`
-12. Phone resets its message store for the new session ID — the hydrated history provides conversation continuity
-13. Banner disappears, input bar appears, badge changes from green "terminal" to blue "vibelink"
-14. User can now send messages
+3. Banner shows loading state: "Taking over..." (existing messages stay visible, read-only)
+4. On confirm: phone sends `take_over` message to bridge via the watch session's WebSocket
+5. Bridge looks up the terminal PID via `loadActivePids()` scan
+6. Bridge validates PID is a Claude process by reading `/proc/<pid>/cmdline`. If PID is stale or not Claude, skip to step 9 (treat as already dead — proceed to resume)
+7. Bridge sends `SIGTERM` to the validated PID
+8. Bridge waits up to 5 seconds for process exit (polling every 500ms), re-validating `/proc/<pid>/cmdline` before escalating to `SIGKILL`
+9. Bridge stops the JSONL watcher and removes the watch session
+10. Bridge creates a new vibelink session with `--resume <sessionId>` and `skipPermissions` inherited
+11. Hydrates the event buffer with recent conversation history
+12. Bridge sends `take_over_complete` with the new `sessionId` and `wsUrl`
+13. Phone closes the watch session WebSocket, opens a new WebSocket to the vibelink session's `wsUrl`
+14. Phone merges hydrated history into the existing message store (preserves visual continuity — no flash or re-render). The new session ID replaces the old one internally but the user sees a seamless transition.
+15. Banner disappears, input bar appears, badge changes from green "terminal" to blue "vibelink"
+16. User can now send messages
+
+**Take-over failure:** If `--resume` fails after killing the terminal process (e.g., corrupt JSONL, CLI update), bridge sends `take_over_failed` with an error message. Phone shows error on the banner: "Take-over failed — session saved." The session appears as idle in "Other sessions" (the JSONL still exists and can be resumed later). User can retry from there.
+
+**Concurrent watchers during take-over:** When a take-over happens, the bridge broadcasts `watch_ended` with reason `taken_over` to all OTHER watchers of the same `claudeSessionId`. Those phones show "Session taken over by another device" instead of a "Resume" button.
 
 **Terminal side:** Claude receives SIGTERM and exits normally. The terminal user sees their shell prompt. If they run `claude --continue` later, they get the full conversation including everything that happened on the phone (it's all in the same JSONL).
 
@@ -127,20 +155,26 @@ When the user taps a terminal session:
 
 When a vibelink session's Claude process has exited and the user sends a new message:
 
-1. The WebSocket `user_message` handler in `server.ts` checks `session.process.alive`
-2. If dead, handler calls a new `SessionManager.respawn(sessionId)` method which:
+1. The WebSocket `user_message` handler in `server.ts` checks `session.process.alive` and `session.respawning`
+2. If `respawning === true`, the message is queued (pushed to a per-session message queue)
+3. If dead and not respawning, handler sets `session.respawning = true` and calls `SessionManager.respawn(sessionId)` which:
    - Spawns new Claude with `--resume <resumeSessionId>` using the session ID from the last `result` event
    - Replaces the dead process in the session object
    - Hydrates buffer with recent history from JSONL
-3. Once the new process is ready, handler sends the user's message to it
-4. From the phone: seamless — user typed, Claude responded
+   - Sets `session.respawning = false`
+   - Flushes any queued messages to the new process
+4. Once the new process is ready, handler sends the user's message to it
+5. From the phone: seamless — user typed, Claude responded
+
+**Auto-resume failure:** If `respawn()` fails, the phone receives no response. After a 15-second timeout with no `claude_event`, the phone shows an inline error: "Could not reconnect — tap to retry." Tapping retries the respawn. The `respawning` flag is cleared on failure so retries work.
 
 This means "end" on a vibelink session is soft — the session moves to idle, but the conversation is preserved. Tapping it in "other sessions" or even creating a new session with the same resume ID brings it back.
 
 ### "End" Action
 
 **End on terminal session:**
-- Bridge looks up PID via `loadActivePids()` scan and sends SIGTERM
+- Bridge looks up PID via `loadActivePids()` scan, validates via `/proc/<pid>/cmdline`
+- Sends SIGTERM, waits up to 5 seconds, then SIGKILL if needed (same escalation as take-over)
 - Session transitions to idle on the next poll (PID is dead, scanner marks it not alive)
 - No bridge session involved — just kills the terminal process
 
@@ -157,60 +191,18 @@ Both actions have the same UX: session disappears from active, appears in "other
 ### Session Identity
 
 **Same project, multiple sessions:** When two sessions exist in the same project directory, they're differentiated by:
-- Last message preview (primary differentiator)
+- Last message preview (primary differentiator — uses last assistant message)
 - Relative time
 - Git branch (if different)
 - Claude's `--name` flag (if set) — shown instead of project name
+
+**Vibelink sessions store their `resumeSessionId`** (the CLI session ID they were created with or resumed from). This is used for matching — the phone identifies sessions by `claudeSessionId`, not `projectPath`, preventing mismatches when multiple sessions share a project.
 
 **Cross-device continuity:**
 - Terminal → Phone: automatic (phone sees terminal sessions via session scanner)
 - Phone → Terminal: user runs `claude --continue` in the project directory (picks up most recent session, including phone conversations)
 
-### WebSocket Protocol Changes
-
-New message types for watching:
-
-**Client → Bridge:**
-```json
-{"type": "watch_session", "claudeSessionId": "<cli-session-id>"}
-```
-Tells the bridge to create a watch session and start the JSONL watcher. Bridge responds with `watch_started`.
-
-```json
-{"type": "stop_watching"}
-```
-Tells the bridge to stop the JSONL watcher and clean up the watch session.
-
-```json
-{"type": "take_over", "claudeSessionId": "<cli-session-id>"}
-```
-Triggers the take-over flow (kill terminal process, resume as vibelink).
-
-**Bridge → Client:**
-```json
-{"type": "watch_started", "sessionId": "<watch-session-id>", "wsUrl": "ws://..."}
-```
-Watch session created. Phone should connect to this WebSocket URL to receive events.
-
-```json
-{"type": "claude_event", "event": {...}, "eventId": 1}
-```
-A parsed JSONL event from the terminal session. Same type as live subprocess events — the mobile rendering pipeline handles them identically.
-
-```json
-{"type": "watch_ended", "reason": "process_exited" | "error"}
-```
-The terminal session ended (PID died) or the watcher encountered an error.
-
-```json
-{"type": "watch_error", "message": "JSONL file not found"}
-```
-The watch request failed (file not found, permission error, etc.).
-
-```json
-{"type": "take_over_complete", "sessionId": "<new-vibelink-session-id>", "wsUrl": "ws://..."}
-```
-Take-over succeeded. Phone should close the current (watch) WebSocket, open a new connection to `wsUrl`, and reset its message store for the new session ID. Hydrated history provides conversation continuity.
+**System prompt note:** `--append-system-prompt` is ephemeral and not preserved on `--resume`. After take-over, the bridge re-injects the VibeLink system prompt. This means the conversation may behave slightly differently after take-over (Claude gains awareness of VibeLink workspace tools). This is expected and beneficial.
 
 ### REST API Changes
 
@@ -222,23 +214,61 @@ Take-over succeeded. Phone should close the current (watch) WebSocket, open a ne
 
 `DELETE /sessions/:id` — no changes (already kills process, removes from SessionManager, preserves JSONL).
 
-**New endpoint:**
+**New endpoints:**
 
-`POST /sessions/watch` — create a watch session (alternative to the WebSocket-based `watch_session` message, for cases where the phone needs the session ID before connecting). Returns `{ sessionId, wsUrl }`. Optional — the WebSocket flow may be sufficient.
+`POST /sessions/watch` — create a watch session for a terminal session. Body: `{ claudeSessionId }`. Returns `{ sessionId, wsUrl }` on success, `{ error }` on failure (JSONL not found, etc.). This is the primary entry point for watching (not a WebSocket message).
+
+`POST /sessions/:id/take-over` — initiate take-over of a terminal session. Body: `{ claudeSessionId }`. Returns `{ sessionId, wsUrl }` on success. Performs PID validation, kill, resume. Alternative to the WebSocket-based `take_over` message for cases where REST is preferred.
+
+### WebSocket Protocol Changes
+
+Messages sent on the **watch session's** WebSocket (after connecting to the URL from `POST /sessions/watch`):
+
+**Client → Bridge:**
+```json
+{"type": "stop_watching"}
+```
+Sent on the watch session's WebSocket. Bridge stops the JSONL watcher and cleans up the watch session.
+
+```json
+{"type": "take_over", "claudeSessionId": "<cli-session-id>"}
+```
+Sent on the watch session's WebSocket. Triggers the take-over flow.
+
+**Bridge → Client:**
+```json
+{"type": "claude_event", "event": {...}, "eventId": 1}
+```
+A parsed JSONL event. Same type as live subprocess events — the mobile rendering pipeline handles them identically.
+
+```json
+{"type": "watch_ended", "reason": "process_exited" | "taken_over" | "file_deleted" | "error", "message": "..."}
+```
+The watch ended. Reasons: `process_exited` (terminal Claude exited), `taken_over` (another device took over), `file_deleted` (JSONL removed), `error` (fs.watch failure or other).
+
+```json
+{"type": "take_over_complete", "sessionId": "<new-vibelink-session-id>", "wsUrl": "ws://..."}
+```
+Take-over succeeded. Phone closes this WebSocket, connects to `wsUrl`, merges hydrated history into existing message store.
+
+```json
+{"type": "take_over_failed", "message": "Resume failed: ..."}
+```
+Take-over killed the terminal process but could not resume. Session is now idle.
 
 ### Files Changed
 
 **Bridge:**
-- `bridge/src/jsonl-watcher.ts` — new file, JSONL file watcher class (fs.watch, offset tracking, PID health check, event parsing)
-- `bridge/src/server.ts` — new WebSocket message handlers (watch_session, stop_watching, take_over), watch session lifecycle
-- `bridge/src/session-scanner.ts` — add `name` field extraction from JSONL, export `loadActivePids()` for reuse
-- `bridge/src/session-manager.ts` — add `respawn(sessionId)` method for auto-resume, add `createWatchSession()` for lightweight watch sessions
+- `bridge/src/jsonl-watcher.ts` — new file, JSONL file watcher class (fs.watch + fs.watchFile fallback, stat-based delta reads, PID validation via /proc/pid/cmdline, event parsing, shared watcher deduplication)
+- `bridge/src/server.ts` — new REST endpoints (POST /sessions/watch, POST /sessions/:id/take-over), new WS message handlers (stop_watching, take_over), watch session lifecycle and cleanup reaper
+- `bridge/src/session-scanner.ts` — add `name` field extraction from JSONL, export `loadActivePids()` for reuse, add `validatePid()` helper
+- `bridge/src/session-manager.ts` — add `respawn(sessionId)` method with locking flag for auto-resume, add `createWatchSession()` for lightweight watch sessions, add per-session message queue for respawn
 
 **Mobile:**
-- `mobile/app/index.tsx` — redesigned session list (active/other split, new badges, end/delete actions, collapsible other section)
-- `mobile/app/session/[id].tsx` — watch mode (banner, no input bar, claude_event handling from watcher), take-over flow with WebSocket reconnection, session-ended-while-watching state transition
-- `mobile/src/store/sessions.ts` — add session type tracking (terminal/vibelink/idle), watch state
-- `mobile/src/services/bridge-api.ts` — add end session API call
+- `mobile/app/index.tsx` — redesigned session list (active/other split, shape+color indicators, swipe-to-end/delete, collapsible other section with auto-expand, empty states, accessibility labels)
+- `mobile/app/session/[id].tsx` — watch mode (banner with loading states, no input bar, "Claude is responding..." indicator, "Terminal session ended" separator, take-over with visual continuity via message merge), error/retry states for watch and take-over failures
+- `mobile/src/store/sessions.ts` — add session type tracking (terminal/vibelink/idle), watch state, `resumeSessionId` for identity matching
+- `mobile/src/services/bridge-api.ts` — add watch session creation, take-over, end session API calls
 
 ### Not In Scope
 
@@ -246,3 +276,4 @@ Take-over succeeded. Phone should close the current (watch) WebSocket, open a ne
 - PTY wrapper for bidirectional terminal injection (future consideration)
 - Terminal-side notification when take-over happens (Claude just exits normally)
 - Automatic session naming / AI-generated session titles
+- Skip-permissions preference on idle session resume (inherits from original session or defaults to off)
