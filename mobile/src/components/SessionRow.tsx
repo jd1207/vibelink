@@ -148,23 +148,13 @@ export function SessionRow({ item, onPress, onSwipeAction, swipeLabel, dimmed }:
             ) : null}
           </View>
 
-          {item.lastMessage ? (
-            <Text
-              className="text-sm ml-5"
-              numberOfLines={1}
-              style={{ color: colors.text.muted }}
-            >
-              {item.lastMessage}
-            </Text>
-          ) : (
-            <Text
-              className="text-xs ml-5"
-              numberOfLines={1}
-              style={{ color: colors.text.dim }}
-            >
-              {item.projectPath}
-            </Text>
-          )}
+          <Text
+            className="text-sm ml-5"
+            numberOfLines={1}
+            style={{ color: item.lastMessage ? colors.text.muted : colors.text.dim }}
+          >
+            {item.lastMessage || (item.sessionType === 'terminal' ? 'active session' : item.projectPath)}
+          </Text>
         </Pressable>
       </Animated.View>
     </View>
