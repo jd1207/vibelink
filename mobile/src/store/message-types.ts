@@ -29,6 +29,7 @@ export interface ClaudeEvent {
   // watch mode events
   sessionId?: string;
   wsUrl?: string;
+  claudeSessionId?: string;
 }
 
 export type WatchState = 'watching' | 'taking_over' | 'ended' | 'error' | null;
@@ -39,6 +40,7 @@ export interface WatchInfo {
   lastUpdate: number;
   takenOverSessionId?: string;
   takenOverWsUrl?: string;
+  claudeSessionId?: string;
 }
 
 export interface ChatMessage {

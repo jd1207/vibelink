@@ -486,8 +486,10 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
             type: "watch_ended",
             reason: "terminal_resumed",
             message: "continued in terminal",
+            claudeSessionId: pidEntry.sessionId,
           });
-          sessionManager.delete(bs.id);
+          // let the reaper clean it up after grace period
+          full.disconnectedAt = Date.now();
           break;
         }
       }

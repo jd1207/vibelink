@@ -59,7 +59,7 @@ export default function SessionsScreen() {
 
   const handlePress = useCallback((item: DisplaySession) => {
     if (item.sessionType === 'vibelink' && item.vibelinkSessionId) {
-      router.push(`/session/${item.vibelinkSessionId}`);
+      router.push(`/session/${item.vibelinkSessionId}?projectPath=${encodeURIComponent(item.projectPath)}`);
       return;
     }
     if (item.sessionType === 'terminal' && item.claudeSessionId) {
@@ -76,7 +76,7 @@ export default function SessionsScreen() {
       bridgeApi.createSession(item.projectPath, false, item.claudeSessionId)
         .then((newSession) => {
           useSessionStore.getState().addSession({ ...newSession, sessionType: 'vibelink' as SessionType });
-          router.push(`/session/${newSession.id}`);
+          router.push(`/session/${newSession.id}?projectPath=${encodeURIComponent(item.projectPath)}&claudeSessionId=${item.claudeSessionId}`);
         })
         .catch((err) => Alert.alert('error', `could not resume session: ${err}`));
     }

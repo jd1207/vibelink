@@ -28,7 +28,7 @@ interface MessageState {
   setMetadata: (sessionId: string, metadata: SessionMetadata) => void;
   updateUsage: (sessionId: string, usage: Partial<SessionMetadata>) => void;
   setCanvas: (sessionId: string, canvas: WorkspaceCanvas | null) => void;
-  setWatchState: (sessionId: string, state: WatchState, error?: string | null) => void;
+  setWatchState: (sessionId: string, state: WatchState, error?: string | null, claudeSessionId?: string) => void;
   setWatchTakeOver: (sessionId: string, newSessionId: string, wsUrl: string) => void;
   updateWatchTimestamp: (sessionId: string) => void;
   copyEvents: (fromSessionId: string, toSessionId: string) => void;
@@ -148,13 +148,13 @@ export const useMessageStore = create<MessageState>((set) => ({
       canvas: { ...state.canvas, [sessionId]: canvas },
     })),
 
-  setWatchState: (sessionId, watchState, error) =>
+  setWatchState: (sessionId, watchState, error, claudeSessionId) =>
     set((state) => {
       const existing = state.watchInfo[sessionId] ?? EMPTY_WATCH_INFO;
       return {
         watchInfo: {
           ...state.watchInfo,
-          [sessionId]: { ...existing, state: watchState, error: error ?? null },
+          [sessionId]: { ...existing, state: watchState, error: error ?? null, ...(claudeSessionId !== undefined ? { claudeSessionId } : {}) },
         },
       };
     }),
