@@ -36,6 +36,7 @@ export function InputBar({ sessionId, isStreaming, onSend }: InputBarProps) {
         className="flex-1 rounded-xl px-4 py-3 text-base max-h-32 border"
         style={{ backgroundColor: colors.bg.surface, borderColor: colors.border.default, color: colors.text.primary }}
         placeholder="message claude..." placeholderTextColor={colors.text.dim}
+        keyboardAppearance={colors.mode === 'light' ? 'light' : 'dark'}
         value={draft} onChangeText={setDraft} autoFocus={false}
         returnKeyType="send" blurOnSubmit={false} onSubmitEditing={handleSend}
       />

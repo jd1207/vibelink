@@ -91,27 +91,23 @@ export function SettingsSheet({ visible, onClose, onDisconnect }: SettingsSheetP
 
           {themeExpanded ? (
             <View className="ml-2 mt-1" accessibilityRole="radiogroup">
-              {themeList.map((t) => (
+              {themeList.filter((t) => t.key !== currentTheme).map((t) => (
                 <Pressable
                   key={t.key}
                   onPress={() => selectTheme(t.key)}
                   className="flex-row items-center gap-4 py-2.5 active:opacity-70"
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: currentTheme === t.key }}
+                  accessibilityState={{ checked: false }}
                 >
                   <View
                     style={{
                       width: 24, height: 24, borderRadius: 12, backgroundColor: t.accent,
-                      borderWidth: currentTheme === t.key ? 2.5 : 0.5,
-                      borderColor: currentTheme === t.key ? colors.text.primary : colors.text.dim,
+                      borderWidth: 0.5, borderColor: colors.text.dim,
                     }}
                   />
                   <Text className="text-sm flex-1" style={{ color: colors.text.primary }}>
                     {t.name}
                   </Text>
-                  {currentTheme === t.key ? (
-                    <Text style={{ color: colors.accent.primary, fontSize: 14 }}>✓</Text>
-                  ) : null}
                 </Pressable>
               ))}
             </View>
