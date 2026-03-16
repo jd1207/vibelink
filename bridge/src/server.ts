@@ -292,16 +292,24 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       return;
     }
 
-    const jsonlPath = await findJsonlPath(claudeSessionId);
-    if (!jsonlPath) {
-      res.status(404).json({ error: "session JSONL not found" });
-      return;
-    }
-
     const pids = await loadActivePids();
     const pidEntry = pids.get(claudeSessionId);
     if (!pidEntry || !isPidAlive(pidEntry.pid) || !(await validatePid(pidEntry.pid))) {
       res.status(404).json({ error: "session not running" });
+      return;
+    }
+
+    // find JSONL — try exact match first, then most recent in project dir
+    let jsonlPath = await findJsonlPath(claudeSessionId);
+    if (!jsonlPath) {
+      // PID session ID doesn't match any JSONL — find most recent JSONL
+      // in the same project directory as a fallback
+      const { findMostRecentJsonl } = await import("./session-scanner.js");
+      jsonlPath = await findMostRecentJsonl(pidEntry.cwd);
+    }
+    if (!jsonlPath) {
+      // no JSONL at all — session is too new, nothing to watch yet
+      res.status(404).json({ error: "no conversation data yet — try again after sending a message in the terminal" });
       return;
     }
 

@@ -301,11 +301,27 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   }
 
   // add alive PID entries that have no matching JSONL (e.g., fresh sessions
-  // where the PID session ID doesn't match any JSONL filename yet)
+  // where the PID session ID doesn't match any JSONL filename yet).
+  // deduplicate: only keep the most recent PID per cwd (project path).
   const foundSessionIds = new Set(sessions.map((s) => s.sessionId));
+  const alivePaths = new Set(
+    sessions.filter((s) => s.alive).map((s) => s.projectPath),
+  );
+
+  // group unmatched PIDs by cwd, keep newest per cwd
+  const unmatchedByCwd = new Map<string, { sid: string; entry: PidEntry }>();
   for (const [sid, entry] of activePids) {
     if (foundSessionIds.has(sid)) continue;
     if (!isPidAlive(entry.pid)) continue;
+    // skip if we already have an alive JSONL-based session for this path
+    if (alivePaths.has(entry.cwd)) continue;
+    const existing = unmatchedByCwd.get(entry.cwd);
+    if (!existing || entry.startedAt > existing.entry.startedAt) {
+      unmatchedByCwd.set(entry.cwd, { sid, entry });
+    }
+  }
+
+  for (const [, { sid, entry }] of unmatchedByCwd) {
     const projectName = entry.cwd.split("/").filter(Boolean).pop() ?? entry.cwd;
     sessions.push({
       sessionId: sid,
@@ -323,6 +339,33 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
   sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
   return sessions;
+}
+
+// find the most recent JSONL file in a project directory (by cwd path)
+export async function findMostRecentJsonl(cwd: string): Promise<string | null> {
+  const projectsDir = join(homedir(), ".claude", "projects");
+  // encode the cwd path to match the directory name format
+  const encoded = cwd.replace(/\//g, "-");
+  const dirPath = join(projectsDir, encoded);
+  try {
+    const files = await readdir(dirPath);
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    if (jsonlFiles.length === 0) return null;
+    // find the most recently modified JSONL
+    let newest: { path: string; mtime: number } | null = null;
+    for (const f of jsonlFiles) {
+      const p = join(dirPath, f);
+      try {
+        const s = await stat(p);
+        if (!newest || s.mtimeMs > newest.mtime) {
+          newest = { path: p, mtime: s.mtimeMs };
+        }
+      } catch { continue; }
+    }
+    return newest?.path ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function findJsonlPath(sessionId: string): Promise<string | null> {
