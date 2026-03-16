@@ -15,7 +15,7 @@ import { useSessionStore, Session } from '../src/store/sessions';
 import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
-import { ThemePicker } from '../src/components/ThemePicker';
+import { SettingsSheet } from '../src/components/SettingsSheet';
 import { useColors } from '../src/store/settings';
 
 interface RecentMessage {
@@ -412,7 +412,7 @@ export default function SessionsScreen() {
           </Pressable>
         </View>
       </View>
-      <ThemePicker visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
+      <SettingsSheet visible={menuOpen} onClose={() => setMenuOpen(false)} onDisconnect={handleDisconnect} />
     </>
   );
 }
