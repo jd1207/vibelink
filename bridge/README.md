@@ -11,14 +11,14 @@ Phone <-- WebSocket --> [WS Client Tracker]
                               |
                         [Event Buffer] (200 events, sequential IDs)
                               |
-MCP Server <-- IPC --> [IPC Server] (/tmp/vibelink.sock)
+MCP Server <-- IPC --> [IPC Server] (TCP 127.0.0.1:3401)
                               |
                         [Project Scanner] (finds .git / CLAUDE.md directories)
                               |
                         [Shutdown Manager] (SIGTERM/SIGINT graceful cleanup)
 ```
 
-**Express** serves the REST API. **ws** handles WebSocket connections. **net.Server** runs the Unix socket IPC. All wired together in `server.ts`.
+**Express** serves the REST API. **ws** handles WebSocket connections. **net.Server** runs TCP IPC (default `127.0.0.1:3401`). All wired together in `server.ts`.
 
 ## File Map
 
@@ -29,7 +29,7 @@ MCP Server <-- IPC --> [IPC Server] (/tmp/vibelink.sock)
 | `claude-process.ts` | Spawn/manage Claude CLI subprocess, parse stdout NDJSON | ~100 |
 | `event-buffer.ts` | Circular buffer with sequential event IDs for reconnection | ~40 |
 | `ws-client.ts` | WebSocket client tracking, heartbeat ping/pong, broadcast | ~75 |
-| `ipc-server.ts` | Unix socket server for MCP server communication | ~90 |
+| `ipc-server.ts` | TCP/IPC server for MCP server communication | ~90 |
 | `ndjson-parser.ts` | Generic NDJSON stream parser (used for testing/utilities) | ~45 |
 | `project-scanner.ts` | Scan directories for .git/CLAUDE.md, with caching | ~95 |
 | `shutdown.ts` | Graceful shutdown manager (ordered cleanup on SIGTERM/SIGINT) | ~40 |
@@ -149,7 +149,7 @@ When a WebSocket reconnects, the client sends `{ type: "reconnect", sessionId, l
 
 ## IPC Protocol (Bridge <--> MCP Server)
 
-NDJSON over Unix socket at `/tmp/vibelink.sock`. Each line is a complete JSON object.
+NDJSON over TCP at `127.0.0.1:3401` (configurable via `IPC_SOCKET_PATH`). Each line is a complete JSON object.
 
 ### MCP Server --> Bridge
 
@@ -182,7 +182,7 @@ All configuration is via environment variables, loaded in `config.ts`.
 |---|---|---|
 | `PORT` | `3400` | HTTP + WebSocket server port |
 | `AUTH_TOKEN` | (empty) | Bearer token for authentication |
-| `IPC_SOCKET_PATH` | `/tmp/vibelink.sock` | Unix socket path for MCP server IPC |
+| `IPC_SOCKET_PATH` | `tcp:3401` | IPC transport — `tcp:PORT` for TCP or a file path for Unix socket |
 | `SCAN_ROOTS` | `~/` | Comma-separated list of directories to scan for projects |
 | `SCAN_MAX_DEPTH` | `3` | Maximum directory depth for project scanning |
 | `SCAN_CACHE_TTL_MS` | `60000` | How long to cache project scan results (ms) |

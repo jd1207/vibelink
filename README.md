@@ -185,8 +185,9 @@ The bridge serves the built APK directly. Generate a QR code for it:
 ```bash
 node scripts/show-qr.js http://<tailscale-ip>:3400/apk
 ```
-Tell them: "Scan this with your phone camera to download VibeLink.
-Install the APK — you may need to allow 'install from unknown sources'."
+Tell them: "Scan this with your **phone camera app** (not inside VibeLink).
+It will open your browser to download the APK. You may need to allow
+'install from unknown sources'."
 
 **QR code 2 — connect to Metro dev server (dev client only, skip for release):**
 Only needed if the user chose dev client mode. Start the dev server first:
@@ -197,8 +198,9 @@ Then generate the QR:
 ```bash
 node scripts/show-qr.js http://<tailscale-ip>:<metro-port>
 ```
-Tell them: "Open the app. It will show the dev client screen.
-Scan this QR to connect to the development server."
+Tell them: "Open the VibeLink app. It will show the Expo dev client screen
+with its own QR scanner. Scan this QR **in the Expo dev client**, not with
+your phone camera."
 The Metro port is shown in the `npx expo start` output (usually 8081).
 
 **QR code 3 (or 2 for release) — connect to the bridge:**
@@ -206,19 +208,24 @@ This QR is the same regardless of platform or dev/release mode:
 ```bash
 node scripts/show-qr.js <tailscale-ip> 3400 <auth-token>
 ```
-Tell them: "You should see the setup screen now. Tap 'scan qr code'
-and point at the screen."
+Tell them: "In the VibeLink app, you should see the setup screen. Tap
+'scan qr code' and scan this one **inside the VibeLink app**."
 If QR scanning doesn't work, give them the IP and token to type manually.
+
+**Important:** Only the bridge QR (QR 3 / QR 2 for release) uses the
+`vibelink://connect` deep link format. The APK and Metro QRs are plain
+URLs — scanning them inside the VibeLink app will show an error.
 
 ### Summary of QR codes
 
 | Mode | QR 1 | QR 2 | QR 3 |
 |:--|:--|:--|:--|
-| **Release APK** | Download APK | Connect to bridge | — |
-| **Dev client** | Download APK | Connect to Metro | Connect to bridge |
+| **Release APK** | Download APK (phone camera) | Connect to bridge (VibeLink app) | — |
+| **Dev client** | Download APK (phone camera) | Connect to Metro (Expo dev client) | Connect to bridge (VibeLink app) |
 
-The bridge connection QR is always the last one scanned, inside the app's
-setup screen. It's the same QR regardless of release or dev mode.
+The bridge connection QR is always the **last** one scanned, inside the
+VibeLink app's setup screen. It's the only QR that uses the `vibelink://`
+deep link format. Never scan the APK or Metro QR inside the VibeLink app.
 
 ### Troubleshooting
 
@@ -289,12 +296,12 @@ Phone (React Native)
   v
 Bridge Server (Node.js)
   |               |
-  | stdin/stdout   | Unix socket
+  | stdin/stdout   | TCP (127.0.0.1:3401)
   | NDJSON         | IPC
   v               v
 Claude CLI     MCP Server
-(subprocess)   (render_ui, tabs,
-               request_input)
+(subprocess)   (render_ui, tabs, workspace,
+               screen-mirror, file-browser)
 ```
 
 ## Requirements
@@ -361,9 +368,6 @@ See package READMEs for internals:
 - [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
 - [x] **File Browser** -- browse project files in workspace, view contents, render markdown
 - [x] **Viewport Toggle** -- switch workspace between mobile and 1280px desktop width
-- [x] **Session Browser** -- lists all Claude Code sessions on the system, resume with conversation history
-- [x] **Theme System** -- 4 themes (Claude Code, Claude Chat, GPT, Midnight), zero hardcoded colors, instant switching
-- [x] **File Browser** -- browse project files in workspace, view contents, render markdown
 
 ### Now
 

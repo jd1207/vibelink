@@ -17,7 +17,7 @@ Four components, two Node.js processes:
 ```
 Phone (React Native) ←WebSocket/Tailscale→ Bridge Server (Node.js)
                                               ├─ stdin/stdout (NDJSON) → Claude Code CLI (subprocess)
-                                              └─ IPC (Unix socket) ← VibeLink MCP Server (stdio, launched by Claude)
+                                              └─ IPC (TCP 127.0.0.1:3401) ← VibeLink MCP Server (stdio, launched by Claude)
 ```
 
 **Bridge Server** (`bridge/`): Central hub. Spawns Claude subprocess with `--dangerously-skip-permissions` (permissions are gated by PreToolUse hook instead), pipes NDJSON between CLI and mobile clients over WebSocket, runs support services, token-based auth. Dashboard at `/dashboard` with diagnostics, restart button, and session management.
@@ -26,17 +26,18 @@ Phone (React Native) ←WebSocket/Tailscale→ Bridge Server (Node.js)
 
 Phase 1 MCP tools: `render_ui`, `update_ui`, `create_tab`, `update_tab`, `request_input`, `send_notification`.
 Phase 1.5 MCP tools: `render_html` (HTML artifacts in workspace), `set_preview_url` (localhost preview in workspace), `clear_workspace`.
-Future tools (Phase 3+): `capture_screenshot`, `stream_preview`.
+Screen mirroring MCP tools: `list_windows`, `stream_window`, `stop_stream`, `stream_status`.
+File browser MCP tools: `browse_files`, `view_file`.
 
 **Permission Hook** (`hooks/permission-hook.js`): Claude Code `PreToolUse` hook registered in `~/.claude/settings.json`. Intercepts every tool call. When `VIBELINK_SKIP_PERMISSIONS` env var is set, auto-allows. Otherwise, POSTs to Bridge's `/permissions/request` endpoint and waits for user approval from phone/dashboard. Exit 0 = allow, exit 2 = deny.
 
 **Claude Code CLI**: Spawned with `--input-format stream-json --output-format stream-json --verbose --include-partial-messages --dangerously-skip-permissions`. The `--verbose` flag is **required** — without it stream-json silently exits with code 1. `--dangerously-skip-permissions` is always set because permissions are gated by the PreToolUse hook instead. Process stays alive for multi-turn; use `--resume` with `session_id` if restarted.
 
 **React Native App** (`mobile/`): Expo + expo-dev-client, NativeWind styling. Expo Go is NOT supported — use dev client or release APK builds (native modules like react-native-webview required).
-Phase 1.5 tabs: Chat (rich markdown + tool activity), Workspace (collapsible metadata panel + WebView canvas for HTML artifacts and localhost previews), Dynamic Tabs (created by Claude via MCP).
-Future: Screen mirroring in workspace, voice input.
+Tabs: Chat (rich markdown + tool activity), Workspace (collapsible metadata panel + WebView canvas for HTML artifacts, localhost previews, and screen mirroring), Dynamic Tabs (created by Claude via MCP).
+Future: Voice input.
 
-## Project Structure (Phase 1)
+## Project Structure
 
 ```
 vibelink/
@@ -55,7 +56,7 @@ vibelink/
 ├── mcp-server/                # VibeLink MCP Server (Node.js + TypeScript)
 │   └── src/
 │       ├── index.ts           # MCP server setup + stdio transport
-│       ├── tools/             # Tool handlers (render-ui, workspace, tabs, input, notify)
+│       ├── tools/             # Tool handlers (render-ui, workspace, tabs, input, notify, screen-mirror, file-browser)
 │       ├── ipc-client.ts      # Connect to Bridge's IPC socket
 │       └── types.ts           # Component type definitions
 ├── mobile/                    # React Native app (Expo + TypeScript)
@@ -165,10 +166,10 @@ When you discover something that will bite us again (wrong port, env var gotcha,
 
 1. **Phase 1** (complete): Full stack — Bridge (with dashboard, diagnostics, restart), MCP server (render_ui, tabs, input), React Native app (Chat + Workspace tabs), permission approval via PreToolUse hook, setup script
 2. **Phase 1.5** (complete): Workspace tab with collapsible metadata panel (model, context window, MCP servers, cost), HTML canvas via WebView (render_html), localhost preview (set_preview_url), system prompt injection, TCP IPC, setup improvements (QR code, deep links, cross-platform scripts)
-3. **Phase 2**: GitHub integration (clone repos from app), additional render_ui components
-4. **Phase 3**: `capture_screenshot`, `stream_preview` (localhost proxy to Workspace tab), screen mirroring
-5. **Phase 4**: Voice input (Whisper STT), camera/gallery uploads, file picker
-6. **Phase 5**: Push notifications, session history browser, offline queuing
+3. **Phase 2** (complete): Screen mirroring (list_windows, stream_window, stop_stream, stream_status — MJPEG, up to 3 concurrent streams), session browser (list/resume all Claude Code sessions with conversation history), theme system (4 themes, zero hardcoded colors), file browser (browse_files, view_file — browse project files, view contents, render markdown), viewport toggle (mobile/desktop width switching)
+4. **Phase 3** (future): Session browser v2 (attach to live CLI sessions, session multiplexing), UI polish, settings menu upgrade, smarter system prompts
+5. **Phase 4** (future): Onboarding flow, file transfer, CLI command passthrough, workspace v2, dashboard overhaul
+6. **Phase 5** (future): Interactive streaming (input forwarding), app integrations (Unity, Blender), WebRTC, push notifications, voice input, camera/file uploads
 
 ## Tech Stack
 
