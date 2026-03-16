@@ -18,6 +18,7 @@ import MessageBubble from '../../src/components/MessageBubble';
 import ToolActivity from '../../src/components/ToolActivity';
 import { formatToolName, formatToolInput } from '../../src/components/tool-format';
 import { useColors } from '../../src/store/settings';
+import { bridgeApi } from '../../src/services/bridge-api';
 
 type GuiItem =
   | { kind: 'message'; data: ChatMessage }
@@ -67,9 +68,14 @@ export default function SessionScreen() {
 
   // session swap handler — copies events for continuity, updates state in-place
   const handleSessionSwap = useCallback((newSessionId: string, watching: boolean) => {
-    useMessageStore.getState().copyEvents(activeSessionId, newSessionId);
+    const oldId = activeSessionId;
+    useMessageStore.getState().copyEvents(oldId, newSessionId);
     setActiveSessionId(newSessionId);
     setIsWatching(watching);
+    // clean up the old bridge session (don't await — fire and forget)
+    if (oldId && oldId !== newSessionId) {
+      bridgeApi.deleteSession(oldId).catch(() => {});
+    }
   }, [activeSessionId]);
 
   // stream tab edit modal
