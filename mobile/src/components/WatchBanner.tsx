@@ -65,6 +65,12 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
 
   const state: WatchState = watchInfo.state;
   const isTakenOver = watchInfo.error === 'session taken over by another device';
+  const isTerminalResumed = watchInfo.error === 'continued in terminal';
+  const endedMessage = isTerminalResumed
+    ? 'continued in terminal'
+    : isTakenOver
+    ? 'session taken over by another device'
+    : 'session ended';
 
   if (state === 'watching') {
     return (
@@ -121,9 +127,25 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
         backgroundColor: colors.bg.surface, borderTopWidth: 1, borderTopColor: colors.border.default,
       }}>
         <Text style={{ color: colors.text.muted, fontSize: 13 }}>
-          {isTakenOver ? 'session taken over by another device' : 'session ended'}
+          {endedMessage}
         </Text>
-        {!isTakenOver && claudeSessionId && projectPath ? (
+        {isTerminalResumed && claudeSessionId ? (
+          <Pressable
+            onPress={() => {
+              bridgeApi.watchSession(claudeSessionId).then((result) => {
+                router.replace(
+                  `/session/${result.sessionId}?watch=true&claudeSessionId=${claudeSessionId}&projectPath=${encodeURIComponent(projectPath || '')}`,
+                );
+              }).catch(() => {});
+            }}
+            style={{
+              backgroundColor: colors.accent.primary, borderRadius: 8,
+              paddingHorizontal: 16, paddingVertical: 10,
+            }}
+          >
+            <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>watch</Text>
+          </Pressable>
+        ) : !isTakenOver && claudeSessionId && projectPath ? (
           <Pressable
             onPress={handleResume}
             style={{
