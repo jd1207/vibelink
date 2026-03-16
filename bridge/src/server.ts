@@ -481,6 +481,12 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
           if (!isPidAlive(pidEntry.pid)) continue;
           if (!(await validatePid(pidEntry.pid))) continue;
           console.log(`[sessions] auto-cleaning bridge session ${bs.id.slice(0, 8)} — newer terminal pid ${pidEntry.pid} in ${bs.projectPath}`);
+          // notify phone clients before cleanup
+          wsTracker.broadcastToSession(bs.id, {
+            type: "watch_ended",
+            reason: "terminal_resumed",
+            message: "continued in terminal",
+          });
           sessionManager.delete(bs.id);
           break;
         }
