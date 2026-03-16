@@ -410,15 +410,25 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     const newSession = sessionManager.create(projectPath, claudeSessionId, true);
     newSession.claudeSessionId = claudeSessionId;
 
-    // hydrate with history
-    try {
-      const history = await readSessionHistory(claudeSessionId);
-      for (const msg of history) {
-        newSession.buffer.push({ type: "claude_event", event: msg });
+    // hydrate from the watch session's buffer (more reliable than re-reading
+    // JSONL, since the PID session ID may not match the JSONL filename)
+    const watchSession = sessionManager.get(req.params.id);
+    if (watchSession?.isWatchSession) {
+      const watchEvents = watchSession.buffer.getAll();
+      for (const e of watchEvents) {
+        newSession.buffer.push(e.payload as Record<string, unknown>);
       }
-      console.log(`[take-over] hydrated ${history.length} messages from ${claudeSessionId.slice(0, 8)}`);
-    } catch (err) {
-      console.error("[take-over] failed to hydrate history:", err);
+      console.log(`[take-over] copied ${watchEvents.length} events from watch session`);
+    } else {
+      try {
+        const history = await readSessionHistory(claudeSessionId);
+        for (const msg of history) {
+          newSession.buffer.push({ type: "claude_event", event: msg });
+        }
+        console.log(`[take-over] hydrated ${history.length} messages from JSONL`);
+      } catch (err) {
+        console.error("[take-over] failed to hydrate history:", err);
+      }
     }
 
     // set up capture manager
@@ -802,12 +812,21 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
           const newSession = sessionManager.create(projectPath, csid, true);
           newSession.claudeSessionId = csid;
 
-          try {
-            const history = await readSessionHistory(csid);
-            for (const m of history) {
-              newSession.buffer.push({ type: "claude_event", event: m });
+          // copy watch session's buffer to new session (more reliable than
+          // re-reading JSONL, since the session ID may not match the JSONL filename)
+          if (session.isWatchSession) {
+            const watchEvents = session.buffer.getAll();
+            for (const e of watchEvents) {
+              newSession.buffer.push(e.payload as Record<string, unknown>);
             }
-          } catch { /* history hydration is best-effort */ }
+          } else {
+            try {
+              const history = await readSessionHistory(csid);
+              for (const m of history) {
+                newSession.buffer.push({ type: "claude_event", event: m });
+              }
+            } catch { /* history hydration is best-effort */ }
+          }
 
           const newCaptureManager = new CaptureManager();
           newSession.captureManager = newCaptureManager;
