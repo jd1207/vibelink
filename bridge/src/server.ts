@@ -362,9 +362,24 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       watcher.startWatching();
     } else {
       entry.watchSessionIds.add(watchSession.id);
+      // populate new session's buffer from an existing watcher's session
+      const existingWsId = [...entry.watchSessionIds].find((id) => id !== watchSession.id);
+      const existingSession = existingWsId ? sessionManager.get(existingWsId) : null;
+      if (existingSession) {
+        for (const e of existingSession.buffer.getAll()) {
+          watchSession.buffer.push(e.payload as Record<string, unknown>);
+        }
+      } else {
+        // no existing session to copy from — re-read JSONL tail
+        try {
+          const history = await readSessionHistory(claudeSessionId);
+          for (const msg of history) {
+            watchSession.buffer.push({ type: "claude_event", event: msg });
+          }
+        } catch { /* best effort */ }
+      }
     }
 
-    // send existing buffer to the new session (history loaded by watcher)
     const wsUrl = `ws://localhost:${port}/ws/${watchSession.id}`;
     res.status(201).json({ sessionId: watchSession.id, wsUrl });
   });
