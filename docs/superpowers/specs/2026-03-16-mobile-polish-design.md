@@ -12,9 +12,9 @@ Create `mobile/src/components/SettingsSheet.tsx` as a sectioned bottom sheet tha
 
 ### Sections
 
-1. **Connection** — read-only row showing bridge URL (truncated) + green/red connection dot from `useConnectionStore`. Informational only, not editable.
+1. **Connection** — read-only row showing bridge hostname (strip `http://` prefix, show just `host:port`) + green/red connection dot from `useConnectionStore`. Shows "not connected" when `bridgeUrl` is empty. Informational only, not editable.
 
-2. **Appearance** — collapsed by default. Shows current theme name + accent color swatch. Tap to expand and reveal all theme options. Selecting a theme collapses the picker back. Each theme option shows: accent swatch circle, theme name, checkmark if active.
+2. **Appearance** — collapsed by default. Shows current theme name + accent color swatch. Tap to expand the accordion within the sheet (does NOT close the whole sheet). Selecting a theme collapses just the accordion back, keeping the sheet open. Each theme option shows: accent swatch circle, theme name, checkmark if active. This differs from the old ThemePicker which closed the entire modal on selection.
 
 3. **Disconnect** — red text button at bottom, separated by a divider. Same behavior as current ThemePicker: closes sheet, then calls `onDisconnect` after 300ms delay.
 
@@ -97,7 +97,7 @@ Create a reusable `SkeletonPulse` component — an `Animated.View` with looping 
 
 Replace the current loading state (`ActivityIndicator` + "scanning sessions...") with 3 skeleton session cards matching the shape of `SessionRow` — rounded rectangle with inner lines for title, status row, and message preview.
 
-**File:** cannot modify `mobile/app/index.tsx` logic — export `SessionSkeleton` from `SkeletonPulse.tsx` so the index.tsx integration can use it. Actually, per user direction, we ARE updating index.tsx (for the SettingsSheet swap), so we can add the skeleton there too.
+**File:** `mobile/app/index.tsx` (user approved this worker to modify it) and `mobile/src/components/SkeletonPulse.tsx` (exports `SessionSkeleton`)
 
 ### Pull-to-Refresh
 
@@ -109,9 +109,14 @@ Add `RefreshControl` to the home screen's `SectionList`. Calls existing `loadSes
 
 **Problem:** `useStreaming.ts` creates a new message object on every `stream_event` delta. During heavy workloads (rapid tool use, long outputs), this triggers a re-render cascade through the entire message list, causing visible UI jank.
 
-**Fix:** Throttle stream delta updates to ~15fps (~66ms). Accumulate deltas in the buffer immediately, but only produce a new message array reference at the throttled rate. Use a `lastUpdateRef` timestamp to gate updates. The final `assistant` event always flushes immediately to ensure no content is lost.
+**Fix:** Throttle stream delta updates to ~15fps (~66ms) inside the existing `useMemo` in `useStreaming.ts`. Mechanism:
 
-This keeps the `AnimatedDots` smooth (already on native driver) and prevents JS thread saturation from rapid re-renders.
+1. Continue processing all events into `streamBufferRef` on every trigger (no data loss)
+2. Before producing a new array reference for `stream_event` deltas, check `Date.now() - lastFlushRef.current < 66` — if within throttle window, return previous `messagesRef.current` without creating new objects
+3. When outside the throttle window, produce the new array with updated content and set `lastFlushRef.current = Date.now()`
+4. `assistant` (final), `user`, `result`, and `system` event types always process immediately — throttling only applies to `stream_event` deltas
+
+This keeps the `useMemo` structure intact (no restructuring to useState/useEffect), keeps `AnimatedDots` smooth (already on native driver), and prevents JS thread saturation from rapid re-renders.
 
 **File:** `mobile/src/hooks/useStreaming.ts`
 
@@ -119,7 +124,7 @@ This keeps the `AnimatedDots` smooth (already on native driver) and prevents JS 
 
 ### Overview
 
-Replace 6 hardcoded Tailwind color classes with `useColors()` style props.
+Replace 4 hardcoded Tailwind color classes with `useColors()` style props.
 
 ### Mapping
 
