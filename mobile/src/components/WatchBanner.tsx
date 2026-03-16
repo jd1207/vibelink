@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { router } from 'expo-router';
 import { useMessageStore, EMPTY_WATCH_INFO } from '../store/messages';
 import { bridgeApi } from '../services/bridge-api';
 import { useColors } from '../store/settings';
@@ -11,12 +10,14 @@ interface WatchBannerProps {
   claudeSessionId: string | undefined;
   projectPath: string | undefined;
   sendRaw: (msg: { type: string; [key: string]: unknown }) => void;
+  onSessionSwap: (newSessionId: string, watching: boolean) => void;
 }
 
-export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }: WatchBannerProps) {
+export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, onSessionSwap }: WatchBannerProps) {
   const colors = useColors();
   const watchInfo = useMessageStore((s) => s.watchInfo[sessionId] ?? EMPTY_WATCH_INFO);
   const [timeAgo, setTimeAgo] = useState('just now');
+  const autoWatchAttemptedRef = useRef(false);
 
   // update relative timestamp every 10s
   useEffect(() => {
@@ -32,12 +33,36 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
     return () => clearInterval(interval);
   }, [watchInfo.lastUpdate]);
 
-  // navigate to new session after successful take-over
+  // swap session in-place after successful take-over (no navigation)
   useEffect(() => {
     if (watchInfo.takenOverSessionId) {
-      router.replace(`/session/${watchInfo.takenOverSessionId}`);
+      onSessionSwap(watchInfo.takenOverSessionId, false);
     }
-  }, [watchInfo.takenOverSessionId]);
+  }, [watchInfo.takenOverSessionId, onSessionSwap]);
+
+  // auto-reconnect watch when terminal resumes
+  const state: WatchState = watchInfo.state;
+  const isTerminalResumed = watchInfo.error === 'continued in terminal';
+  useEffect(() => {
+    if (state !== 'ended' || !isTerminalResumed || !claudeSessionId) return;
+    if (autoWatchAttemptedRef.current) return;
+    autoWatchAttemptedRef.current = true;
+
+    bridgeApi.watchSession(claudeSessionId).then((result) => {
+      useMessageStore.getState().setWatchState(result.sessionId, 'watching');
+      onSessionSwap(result.sessionId, true);
+    }).catch(() => {
+      // watch failed (no JSONL yet) — leave banner showing, user can tap manually
+      autoWatchAttemptedRef.current = false;
+    });
+  }, [state, isTerminalResumed, claudeSessionId, onSessionSwap]);
+
+  // reset auto-watch flag when state changes away from ended
+  useEffect(() => {
+    if (state !== 'ended') {
+      autoWatchAttemptedRef.current = false;
+    }
+  }, [state]);
 
   const handleTakeOver = useCallback(() => {
     if (!claudeSessionId) return;
@@ -57,15 +82,13 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
     if (!claudeSessionId || !projectPath) return;
     try {
       const result = await bridgeApi.createSession(projectPath, false, claudeSessionId);
-      router.replace(`/session/${result.id}`);
+      onSessionSwap(result.id, false);
     } catch (err: any) {
       Alert.alert('resume failed', err.message);
     }
-  }, [claudeSessionId, projectPath]);
+  }, [claudeSessionId, projectPath, onSessionSwap]);
 
-  const state: WatchState = watchInfo.state;
   const isTakenOver = watchInfo.error === 'session taken over by another device';
-  const isTerminalResumed = watchInfo.error === 'continued in terminal';
   const endedMessage = isTerminalResumed
     ? 'continued in terminal'
     : isTakenOver
@@ -133,9 +156,8 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw }
           <Pressable
             onPress={() => {
               bridgeApi.watchSession(claudeSessionId).then((result) => {
-                router.replace(
-                  `/session/${result.sessionId}?watch=true&claudeSessionId=${claudeSessionId}&projectPath=${encodeURIComponent(projectPath || '')}`,
-                );
+                useMessageStore.getState().setWatchState(result.sessionId, 'watching');
+                onSessionSwap(result.sessionId, true);
               }).catch(() => {});
             }}
             style={{

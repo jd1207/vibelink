@@ -31,34 +31,46 @@ export default function SessionScreen() {
     claudeSessionId?: string;
     projectPath?: string;
   }>();
-  const sessionId = params.id ?? '';
+  const initialSessionId = params.id ?? '';
   const isWatchMode = params.watch === 'true';
-  const claudeSessionId = params.claudeSessionId;
+  const initialClaudeSessionId = params.claudeSessionId;
   const projectPath = params.projectPath ? decodeURIComponent(params.projectPath) : undefined;
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<GuiItem>>(null);
   const shouldAutoScroll = useRef(true);
 
+  // mutable state for seamless session swapping (no navigation)
+  const [activeSessionId, setActiveSessionId] = useState(initialSessionId);
+  const [activeClaudeSessionId, setActiveClaudeSessionId] = useState(initialClaudeSessionId);
+  const [isWatching, setIsWatching] = useState(isWatchMode);
+
   const [activeTab, setActiveTab] = React.useState('gui');
-  const { isConnected, sendMessage, sendRaw } = useWebSocket(sessionId);
-  const streamedMessages = useStreaming(sessionId);
-  const isStreaming = useMessageStore((s) => s.isStreaming[sessionId] ?? false);
-  const dynamicTabs = useMessageStore((s) => s.tabs[sessionId] ?? EMPTY_TABS);
-  const permissionQueue = useMessageStore((s) => s.permissionQueue[sessionId] ?? EMPTY_PERMISSION_QUEUE);
+  const { isConnected, sendMessage, sendRaw } = useWebSocket(activeSessionId);
+  const streamedMessages = useStreaming(activeSessionId);
+  const isStreaming = useMessageStore((s) => s.isStreaming[activeSessionId] ?? false);
+  const dynamicTabs = useMessageStore((s) => s.tabs[activeSessionId] ?? EMPTY_TABS);
+  const permissionQueue = useMessageStore((s) => s.permissionQueue[activeSessionId] ?? EMPTY_PERMISSION_QUEUE);
   const permissionRequest = permissionQueue[0] ?? null;
-  const streamTabs = useStreamStore((s) => s.streamTabs[sessionId] ?? EMPTY_STREAM_TABS);
-  const pickerOpen = useStreamStore((s) => s.pickerOpen[sessionId] ?? false);
+  const streamTabs = useStreamStore((s) => s.streamTabs[activeSessionId] ?? EMPTY_STREAM_TABS);
+  const pickerOpen = useStreamStore((s) => s.pickerOpen[activeSessionId] ?? false);
   const { setPickerOpen } = useStreamStore.getState();
   const bridgeUrl = useConnectionStore((s) => s.bridgeUrl);
   const authToken = useConnectionStore((s) => s.authToken);
-  const watchState = useMessageStore((s) => s.watchInfo[sessionId] ?? EMPTY_WATCH_INFO).state;
+  const watchState = useMessageStore((s) => s.watchInfo[activeSessionId] ?? EMPTY_WATCH_INFO).state;
 
   // initialize watch state in store on mount
   useEffect(() => {
     if (isWatchMode) {
-      useMessageStore.getState().setWatchState(sessionId, 'watching');
+      useMessageStore.getState().setWatchState(activeSessionId, 'watching');
     }
-  }, [isWatchMode, sessionId]);
+  }, [isWatchMode, activeSessionId]);
+
+  // session swap handler — copies events for continuity, updates state in-place
+  const handleSessionSwap = useCallback((newSessionId: string, watching: boolean) => {
+    useMessageStore.getState().copyEvents(activeSessionId, newSessionId);
+    setActiveSessionId(newSessionId);
+    setIsWatching(watching);
+  }, [activeSessionId]);
 
   // stream tab edit modal
   const [editingStream, setEditingStream] = useState<string | null>(null);
@@ -132,10 +144,10 @@ export default function SessionScreen() {
   useEffect(() => {
     if (!isStreaming || isConnected) return;
     const timer = setTimeout(() => {
-      useMessageStore.getState().setStreaming(sessionId, false);
+      useMessageStore.getState().setStreaming(activeSessionId, false);
     }, 5000);
     return () => clearTimeout(timer);
-  }, [isStreaming, isConnected, sessionId]);
+  }, [isStreaming, isConnected, activeSessionId]);
 
   const handleScroll = useCallback((event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -172,20 +184,20 @@ export default function SessionScreen() {
     (tabKey: string) => {
       if (tabKey === 'add-stream') {
         sendRaw({ type: 'list_windows' });
-        setPickerOpen(sessionId, true);
+        setPickerOpen(activeSessionId, true);
         return;
       }
       // tapping already-active stream tab opens edit modal
       if (tabKey === activeTab && tabKey.startsWith('stream-')) {
         const wid = tabKey.replace('stream-', '');
-        const tab = useStreamStore.getState().streamTabs[sessionId]?.[wid];
+        const tab = useStreamStore.getState().streamTabs[activeSessionId]?.[wid];
         setEditLabel(tab?.tabLabel || '');
         setEditingStream(wid);
         return;
       }
       setActiveTab(tabKey);
     },
-    [sendRaw, setPickerOpen, sessionId, activeTab],
+    [sendRaw, setPickerOpen, activeSessionId, activeTab],
   );
 
   const handleStreamConfirm = useCallback(
@@ -198,21 +210,21 @@ export default function SessionScreen() {
   const handleStreamReject = useCallback(
     (windowId: string) => {
       sendRaw({ type: 'stream_confirm_response', windowId, accepted: false });
-      useStreamStore.getState().removeStreamTab(sessionId, windowId);
+      useStreamStore.getState().removeStreamTab(activeSessionId, windowId);
     },
-    [sendRaw, sessionId],
+    [sendRaw, activeSessionId],
   );
 
   const handlePermissionResponse = useCallback(
     (behavior: 'allow' | 'deny') => {
       // read directly from store to avoid stale closure when tapping rapidly
-      const queue = useMessageStore.getState().permissionQueue[sessionId];
+      const queue = useMessageStore.getState().permissionQueue[activeSessionId];
       const front = queue?.[0];
       if (!front) return;
       sendRaw({ type: 'permission_response', requestId: front.requestId, behavior });
-      useMessageStore.getState().shiftPermission(sessionId);
+      useMessageStore.getState().shiftPermission(activeSessionId);
     },
-    [sendRaw, sessionId],
+    [sendRaw, activeSessionId],
   );
 
   const renderGuiItem = useCallback(
@@ -231,7 +243,7 @@ export default function SessionScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ title: isWatchMode ? 'watching' : 'chat', headerRight: () => <ConnectionBadge /> }}
+        options={{ title: isWatching ? 'watching' : 'chat', headerRight: () => <ConnectionBadge /> }}
       />
       <View
         style={{ flex: 1, backgroundColor: colors.bg.primary, paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
@@ -241,14 +253,14 @@ export default function SessionScreen() {
         <View className="flex-1">
           {activeTab.startsWith('stream-') ? (
             <StreamView
-              sessionId={sessionId}
+              sessionId={activeSessionId}
               windowId={activeTab.replace('stream-', '')}
-              wsUrl={`ws://${bridgeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}/ws/${sessionId}?token=${encodeURIComponent(authToken)}`}
+              wsUrl={`ws://${bridgeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}/ws/${activeSessionId}?token=${encodeURIComponent(authToken)}`}
               onConfirm={handleStreamConfirm}
               onReject={handleStreamReject}
             />
           ) : activeTab === 'workspace' ? (
-            <WorkspaceView sessionId={sessionId} onComponentInteraction={handleComponentInteraction} />
+            <WorkspaceView sessionId={activeSessionId} onComponentInteraction={handleComponentInteraction} />
           ) : (
             <FlatList
               ref={flatListRef}
@@ -260,7 +272,7 @@ export default function SessionScreen() {
               keyExtractor={keyExtractor}
               contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
               ListFooterComponent={
-                isWatchMode && isStreaming ? (
+                isWatching && isStreaming ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
                     <ActivityIndicator size="small" color={colors.text.muted} />
                     <Text style={{ color: colors.text.subtle, fontSize: 13 }}>Claude is responding...</Text>
@@ -270,7 +282,7 @@ export default function SessionScreen() {
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center pt-32">
                   <Text className="text-base" style={{ color: colors.text.dim }}>
-                    {isWatchMode ? 'watching terminal session...' : 'send a message to start'}
+                    {isWatching ? 'watching terminal session...' : 'send a message to start'}
                   </Text>
                 </View>
               }
@@ -317,21 +329,22 @@ export default function SessionScreen() {
 
         {watchState ? (
           <WatchBanner
-            sessionId={sessionId}
-            claudeSessionId={claudeSessionId}
+            sessionId={activeSessionId}
+            claudeSessionId={activeClaudeSessionId}
             projectPath={projectPath}
             sendRaw={sendRaw}
+            onSessionSwap={handleSessionSwap}
           />
         ) : (
-          <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
+          <InputBar sessionId={activeSessionId} isStreaming={isStreaming} onSend={sendMessage} />
         )}
 
         <WindowPicker
-          sessionId={sessionId}
+          sessionId={activeSessionId}
           visible={pickerOpen}
-          onClose={() => setPickerOpen(sessionId, false)}
+          onClose={() => setPickerOpen(activeSessionId, false)}
           onSelect={(w) => {
-            useStreamStore.getState().addStreamTab(sessionId, w.id, w.title, 'streaming');
+            useStreamStore.getState().addStreamTab(activeSessionId, w.id, w.title, 'streaming');
             sendRaw({ type: 'start_stream', windowId: w.id });
             setActiveTab(`stream-${w.id}`);
           }}
@@ -364,7 +377,7 @@ export default function SessionScreen() {
               <Pressable
                 onPress={() => {
                   if (editingStream && editLabel.trim()) {
-                    useStreamStore.getState().renameStreamTab(sessionId, editingStream, editLabel.trim());
+                    useStreamStore.getState().renameStreamTab(activeSessionId, editingStream, editLabel.trim());
                   }
                   setEditingStream(null);
                 }}
@@ -376,7 +389,7 @@ export default function SessionScreen() {
                 onPress={() => {
                   if (editingStream) {
                     sendRaw({ type: 'stop_stream', windowId: editingStream });
-                    useStreamStore.getState().removeStreamTab(sessionId, editingStream);
+                    useStreamStore.getState().removeStreamTab(activeSessionId, editingStream);
                     setActiveTab('gui');
                   }
                   setEditingStream(null);
