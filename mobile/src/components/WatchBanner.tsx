@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useMessageStore, EMPTY_WATCH_INFO } from '../store/messages';
 import { bridgeApi } from '../services/bridge-api';
@@ -17,7 +17,7 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
   const colors = useColors();
   const watchInfo = useMessageStore((s) => s.watchInfo[sessionId] ?? EMPTY_WATCH_INFO);
   const [timeAgo, setTimeAgo] = useState('just now');
-  const autoWatchAttemptedRef = useRef(false);
+  const [swapping, setSwapping] = useState(false);
 
   // update relative timestamp every 10s
   useEffect(() => {
@@ -33,37 +33,18 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
     return () => clearInterval(interval);
   }, [watchInfo.lastUpdate]);
 
-  // swap session in-place after successful take-over (no navigation)
+  // handle take_over_complete — swap session in-place
   useEffect(() => {
     if (watchInfo.takenOverSessionId) {
       onSessionSwap(watchInfo.takenOverSessionId, false);
     }
-  }, [watchInfo.takenOverSessionId, onSessionSwap]);
+  }, [watchInfo.takenOverSessionId]);
 
-  // auto-reconnect watch when terminal resumes
   const state: WatchState = watchInfo.state;
   const isTerminalResumed = watchInfo.error === 'continued in terminal';
-  useEffect(() => {
-    if (state !== 'ended' || !isTerminalResumed || !claudeSessionId) return;
-    if (autoWatchAttemptedRef.current) return;
-    autoWatchAttemptedRef.current = true;
+  const isTakenOver = watchInfo.error === 'session taken over by another device';
 
-    bridgeApi.watchSession(claudeSessionId).then((result) => {
-      useMessageStore.getState().setWatchState(result.sessionId, 'watching');
-      onSessionSwap(result.sessionId, true);
-    }).catch(() => {
-      // watch failed (no JSONL yet) — leave banner showing, user can tap manually
-      autoWatchAttemptedRef.current = false;
-    });
-  }, [state, isTerminalResumed, claudeSessionId, onSessionSwap]);
-
-  // reset auto-watch flag when state changes away from ended
-  useEffect(() => {
-    if (state !== 'ended') {
-      autoWatchAttemptedRef.current = false;
-    }
-  }, [state]);
-
+  // take over: kill terminal, get vibelink control
   const handleTakeOver = useCallback(() => {
     if (!claudeSessionId) return;
     Alert.alert('take over', 'this will end the terminal session. continue?', [
@@ -78,23 +59,36 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
     ]);
   }, [claudeSessionId, sessionId, sendRaw]);
 
+  // take over from "continued in terminal" state — create watch first, then take over
+  const handleTakeOverFromTerminal = useCallback(async () => {
+    if (!claudeSessionId || swapping) return;
+    setSwapping(true);
+    try {
+      // create a watch session first
+      const watchResult = await bridgeApi.watchSession(claudeSessionId);
+      // swap to the watch session
+      useMessageStore.getState().setWatchState(watchResult.sessionId, 'watching');
+      onSessionSwap(watchResult.sessionId, true);
+    } catch (err: any) {
+      Alert.alert('failed', err.message || 'could not connect to terminal session');
+      setSwapping(false);
+    }
+  }, [claudeSessionId, swapping, onSessionSwap]);
+
+  // resume from ended state — create vibelink session
   const handleResume = useCallback(async () => {
-    if (!claudeSessionId || !projectPath) return;
+    if (!claudeSessionId || !projectPath || swapping) return;
+    setSwapping(true);
     try {
       const result = await bridgeApi.createSession(projectPath, false, claudeSessionId);
       onSessionSwap(result.id, false);
     } catch (err: any) {
       Alert.alert('resume failed', err.message);
+      setSwapping(false);
     }
-  }, [claudeSessionId, projectPath, onSessionSwap]);
+  }, [claudeSessionId, projectPath, swapping, onSessionSwap]);
 
-  const isTakenOver = watchInfo.error === 'session taken over by another device';
-  const endedMessage = isTerminalResumed
-    ? 'continued in terminal'
-    : isTakenOver
-    ? 'session taken over by another device'
-    : 'session ended';
-
+  // --- watching state: live dot + take over button ---
   if (state === 'watching') {
     return (
       <View style={{
@@ -111,11 +105,6 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
             ) : null}
           </View>
         </View>
-        {watchInfo.error ? (
-          <Text style={{ color: colors.status.warning, fontSize: 11, flex: 1, textAlign: 'center' }}>
-            {watchInfo.error}
-          </Text>
-        ) : null}
         <Pressable
           onPress={handleTakeOver}
           style={{
@@ -129,6 +118,7 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
     );
   }
 
+  // --- taking over: loading spinner ---
   if (state === 'taking_over') {
     return (
       <View style={{
@@ -142,46 +132,63 @@ export function WatchBanner({ sessionId, claudeSessionId, projectPath, sendRaw, 
     );
   }
 
+  // --- ended state ---
   if (state === 'ended') {
+    const message = isTerminalResumed
+      ? 'continued in terminal'
+      : isTakenOver
+      ? 'taken over by another device'
+      : 'session ended';
+
+    // determine which button to show
+    let button = null;
+    if (isTerminalResumed && claudeSessionId) {
+      // user went back to terminal — offer take over (goes through watch first)
+      button = (
+        <Pressable
+          onPress={handleTakeOverFromTerminal}
+          disabled={swapping}
+          style={{
+            backgroundColor: colors.accent.primary, borderRadius: 8,
+            paddingHorizontal: 16, paddingVertical: 10,
+            opacity: swapping ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>
+            {swapping ? 'connecting...' : 'take over'}
+          </Text>
+        </Pressable>
+      );
+    } else if (!isTakenOver && claudeSessionId && projectPath) {
+      // session ended normally — offer resume
+      button = (
+        <Pressable
+          onPress={handleResume}
+          disabled={swapping}
+          style={{
+            backgroundColor: colors.accent.primary, borderRadius: 8,
+            paddingHorizontal: 16, paddingVertical: 10,
+            opacity: swapping ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>resume</Text>
+        </Pressable>
+      );
+    }
+
     return (
       <View style={{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 16, paddingVertical: 12,
         backgroundColor: colors.bg.surface, borderTopWidth: 1, borderTopColor: colors.border.default,
       }}>
-        <Text style={{ color: colors.text.muted, fontSize: 13 }}>
-          {endedMessage}
-        </Text>
-        {isTerminalResumed && claudeSessionId ? (
-          <Pressable
-            onPress={() => {
-              bridgeApi.watchSession(claudeSessionId).then((result) => {
-                useMessageStore.getState().setWatchState(result.sessionId, 'watching');
-                onSessionSwap(result.sessionId, true);
-              }).catch(() => {});
-            }}
-            style={{
-              backgroundColor: colors.accent.primary, borderRadius: 8,
-              paddingHorizontal: 16, paddingVertical: 10,
-            }}
-          >
-            <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>watch</Text>
-          </Pressable>
-        ) : !isTakenOver && claudeSessionId && projectPath ? (
-          <Pressable
-            onPress={handleResume}
-            style={{
-              backgroundColor: colors.accent.primary, borderRadius: 8,
-              paddingHorizontal: 16, paddingVertical: 10,
-            }}
-          >
-            <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>resume</Text>
-          </Pressable>
-        ) : null}
+        <Text style={{ color: colors.text.muted, fontSize: 13 }}>{message}</Text>
+        {button}
       </View>
     );
   }
 
+  // --- error state ---
   if (state === 'error') {
     return (
       <View style={{
