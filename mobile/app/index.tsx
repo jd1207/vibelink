@@ -4,7 +4,6 @@ import {
   Text,
   Pressable,
   SectionList,
-  ActivityIndicator,
   Alert,
   Animated,
   PanResponder,
@@ -16,6 +15,7 @@ import { useConnectionStore } from '../src/store/connection';
 import { bridgeApi } from '../src/services/bridge-api';
 import { ConnectionBadge } from '../src/components/ConnectionBadge';
 import { SettingsSheet } from '../src/components/SettingsSheet';
+import { SessionSkeleton } from '../src/components/SkeletonPulse';
 import { useColors } from '../src/store/settings';
 
 interface RecentMessage {
@@ -335,11 +335,10 @@ export default function SessionsScreen() {
       />
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         {loading && (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color={colors.accent.primary} />
-            <Text className="mt-3 text-sm" style={{ color: colors.text.subtle }}>
-              scanning sessions...
-            </Text>
+          <View className="flex-1 pt-4">
+            <SessionSkeleton />
+            <SessionSkeleton />
+            <SessionSkeleton />
           </View>
         )}
 
