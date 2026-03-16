@@ -45,9 +45,11 @@ The project is open source and designed for developers who already use Claude Co
 
 ### 1. Get the app on your phone
 
-**Easiest (Android):** Download the latest APK from the
-[Releases page](https://github.com/jd1207/vibelink/releases/latest)
-and install it. Enable "install from unknown sources" if prompted.
+**Easiest (Android):** Scan this QR code with your phone camera to download the APK:
+
+<img src="assets/download-qr.svg" alt="Download VibeLink APK" width="180"/>
+
+Or download from the [Releases page](https://github.com/jd1207/vibelink/releases/latest). Enable "install from unknown sources" if prompted.
 
 **Build it yourself:** See [Building from Source](#building-from-source).
 
