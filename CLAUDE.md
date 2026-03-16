@@ -166,10 +166,11 @@ When you discover something that will bite us again (wrong port, env var gotcha,
 
 1. **Phase 1** (complete): Full stack — Bridge (with dashboard, diagnostics, restart), MCP server (render_ui, tabs, input), React Native app (Chat + Workspace tabs), permission approval via PreToolUse hook, setup script
 2. **Phase 1.5** (complete): Workspace tab with collapsible metadata panel (model, context window, MCP servers, cost), HTML canvas via WebView (render_html), localhost preview (set_preview_url), system prompt injection, TCP IPC, setup improvements (QR code, deep links, cross-platform scripts)
-3. **Phase 2** (complete): Screen mirroring (list_windows, stream_window, stop_stream, stream_status — MJPEG, up to 3 concurrent streams), session browser (list/resume all Claude Code sessions with conversation history), theme system (4 themes, zero hardcoded colors), file browser (browse_files, view_file — browse project files, view contents, render markdown), viewport toggle (mobile/desktop width switching)
-4. **Phase 3** (future): Session browser v2 (attach to live CLI sessions, session multiplexing), UI polish, settings menu upgrade, smarter system prompts
-5. **Phase 4** (future): Onboarding flow, file transfer, CLI command passthrough, workspace v2, dashboard overhaul
-6. **Phase 5** (future): Interactive streaming (input forwarding), app integrations (Unity, Blender), WebRTC, push notifications, voice input, camera/file uploads
+3. **Phase 2** (complete): Screen mirroring (MJPEG, up to 3 concurrent), session browser v1 (list/resume sessions), theme system (5 themes, zero hardcoded colors), file browser, viewport toggle
+4. **Phase 3** (complete): Session browser v2 (watch live terminal sessions, take over from phone, seamless phone/terminal switching with `--continue`), settings sheet (bridge URL, status, themes, disconnect), skeleton loading, streaming performance (throttled flush)
+5. **Phase 4** (now): Session polish (duplicate fix, auto-scroll, lazy-load), notification badges, smarter system prompt, tab performance
+6. **Phase 5** (next): Onboarding flow, file transfer, CLI command passthrough, workspace v2, dashboard overhaul
+7. **Phase 6** (later): Interactive streaming (input forwarding), app integrations (Unity, Blender), WebRTC, push notifications
 
 ## Tech Stack
 
