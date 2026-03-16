@@ -347,14 +347,14 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
         }
       });
 
-      entry = { watcher, watchSessionIds: new Set() };
+      entry = { watcher, watchSessionIds: new Set([watchSession.id]) };
       activeWatchers.set(claudeSessionId, entry);
 
       await watcher.loadHistory();
       watcher.startWatching();
+    } else {
+      entry.watchSessionIds.add(watchSession.id);
     }
-
-    entry.watchSessionIds.add(watchSession.id);
 
     // send existing buffer to the new session (history loaded by watcher)
     const wsUrl = `ws://localhost:${port}/ws/${watchSession.id}`;
