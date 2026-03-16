@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { ClaudeEvent, ChatMessage, InputRequest, SessionMetadata, WorkspaceCanvas } from './message-types';
+import type { ClaudeEvent, ChatMessage, InputRequest, SessionMetadata, WorkspaceCanvas, WatchInfo, WatchState } from './message-types';
 
-export type { ClaudeEvent, ChatMessage, ContentBlock, InputRequest, SessionMetadata, WorkspaceCanvas } from './message-types';
+export type { ClaudeEvent, ChatMessage, ContentBlock, InputRequest, SessionMetadata, WorkspaceCanvas, WatchInfo, WatchState } from './message-types';
 
 // use plain objects instead of Maps to avoid getSnapshot reference issues
 interface MessageState {
@@ -14,6 +14,7 @@ interface MessageState {
   permissionQueue: Record<string, { requestId: string; toolName: string; toolInput: Record<string, unknown> }[]>;
   metadata: Record<string, SessionMetadata>;
   canvas: Record<string, WorkspaceCanvas | null>;
+  watchInfo: Record<string, WatchInfo>;
 
   appendEvent: (sessionId: string, event: ClaudeEvent) => void;
   setComponent: (sessionId: string, componentId: string, component: unknown) => void;
@@ -27,6 +28,9 @@ interface MessageState {
   setMetadata: (sessionId: string, metadata: SessionMetadata) => void;
   updateUsage: (sessionId: string, usage: Partial<SessionMetadata>) => void;
   setCanvas: (sessionId: string, canvas: WorkspaceCanvas | null) => void;
+  setWatchState: (sessionId: string, state: WatchState, error?: string | null) => void;
+  setWatchTakeOver: (sessionId: string, newSessionId: string, wsUrl: string) => void;
+  updateWatchTimestamp: (sessionId: string) => void;
   clearSession: (sessionId: string) => void;
 }
 
@@ -36,7 +40,9 @@ const EMPTY_COMPONENTS: Record<string, unknown> = {};
 const EMPTY_TABS: unknown[] = [];
 const EMPTY_PERMISSION_QUEUE: { requestId: string; toolName: string; toolInput: Record<string, unknown> }[] = [];
 
-export { EMPTY_EVENTS, EMPTY_COMPONENTS, EMPTY_TABS, EMPTY_PERMISSION_QUEUE };
+const EMPTY_WATCH_INFO: WatchInfo = { state: null, error: null, lastUpdate: 0 };
+
+export { EMPTY_EVENTS, EMPTY_COMPONENTS, EMPTY_TABS, EMPTY_PERMISSION_QUEUE, EMPTY_WATCH_INFO };
 
 export const useMessageStore = create<MessageState>((set) => ({
   events: {},
@@ -48,6 +54,7 @@ export const useMessageStore = create<MessageState>((set) => ({
   permissionQueue: {},
   metadata: {},
   canvas: {},
+  watchInfo: {},
 
   appendEvent: (sessionId, event) =>
     set((state) => {
@@ -140,6 +147,39 @@ export const useMessageStore = create<MessageState>((set) => ({
       canvas: { ...state.canvas, [sessionId]: canvas },
     })),
 
+  setWatchState: (sessionId, watchState, error) =>
+    set((state) => {
+      const existing = state.watchInfo[sessionId] ?? EMPTY_WATCH_INFO;
+      return {
+        watchInfo: {
+          ...state.watchInfo,
+          [sessionId]: { ...existing, state: watchState, error: error ?? null },
+        },
+      };
+    }),
+
+  setWatchTakeOver: (sessionId, newSessionId, wsUrl) =>
+    set((state) => {
+      const existing = state.watchInfo[sessionId] ?? EMPTY_WATCH_INFO;
+      return {
+        watchInfo: {
+          ...state.watchInfo,
+          [sessionId]: { ...existing, state: 'taking_over', takenOverSessionId: newSessionId, takenOverWsUrl: wsUrl },
+        },
+      };
+    }),
+
+  updateWatchTimestamp: (sessionId) =>
+    set((state) => {
+      const existing = state.watchInfo[sessionId] ?? EMPTY_WATCH_INFO;
+      return {
+        watchInfo: {
+          ...state.watchInfo,
+          [sessionId]: { ...existing, lastUpdate: Date.now() },
+        },
+      };
+    }),
+
   clearSession: (sessionId) =>
     set((state) => {
       const { [sessionId]: _e, ...events } = state.events;
@@ -151,6 +191,7 @@ export const useMessageStore = create<MessageState>((set) => ({
       const { [sessionId]: _p, ...permissionQueue } = state.permissionQueue;
       const { [sessionId]: _m, ...metadata } = state.metadata;
       const { [sessionId]: _cv, ...canvas } = state.canvas;
-      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionQueue, metadata, canvas };
+      const { [sessionId]: _w, ...watchInfo } = state.watchInfo;
+      return { events, components, tabs, isStreaming, lastEventId, inputRequests, permissionQueue, metadata, canvas, watchInfo };
     }),
 }));

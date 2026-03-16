@@ -26,6 +26,19 @@ export interface ClaudeEvent {
   accepted?: boolean;
   fps?: number;
   frameSize?: number;
+  // watch mode events
+  sessionId?: string;
+  wsUrl?: string;
+}
+
+export type WatchState = 'watching' | 'taking_over' | 'ended' | 'error' | null;
+
+export interface WatchInfo {
+  state: WatchState;
+  error: string | null;
+  lastUpdate: number;
+  takenOverSessionId?: string;
+  takenOverWsUrl?: string;
 }
 
 export interface ChatMessage {

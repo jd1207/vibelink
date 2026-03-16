@@ -15,6 +15,9 @@ export function useEventDispatch(sessionId: string) {
   const setMetadata = useMessageStore((s) => s.setMetadata);
   const updateUsage = useMessageStore((s) => s.updateUsage);
   const setCanvas = useMessageStore((s) => s.setCanvas);
+  const setWatchState = useMessageStore((s) => s.setWatchState);
+  const setWatchTakeOver = useMessageStore((s) => s.setWatchTakeOver);
+  const updateWatchTimestamp = useMessageStore((s) => s.updateWatchTimestamp);
 
   const { addStreamTab, updateStreamTab, removeStreamTab, setWindowList } = useStreamStore.getState();
 
@@ -28,6 +31,7 @@ export function useEventDispatch(sessionId: string) {
 
     switch (data.type) {
       case 'claude_event':
+        updateWatchTimestamp(sessionId);
         if (data.event?.type === 'stream_event') {
           setStreaming(sessionId, true);
         }
@@ -114,6 +118,25 @@ export function useEventDispatch(sessionId: string) {
       case 'session_ended':
         setStreaming(sessionId, false);
         break;
+      case 'watch_ended': {
+        const reason = data.reason as string | undefined;
+        if (reason === 'taken_over') {
+          setWatchState(sessionId, 'ended', 'session taken over by another device');
+        } else if (reason === 'process_exited') {
+          setWatchState(sessionId, 'ended');
+        } else {
+          setWatchState(sessionId, 'error', String(data.error ?? 'watch ended unexpectedly'));
+        }
+        break;
+      }
+      case 'take_over_complete':
+        if (data.sessionId && data.wsUrl) {
+          setWatchTakeOver(sessionId, String(data.sessionId), String(data.wsUrl));
+        }
+        break;
+      case 'take_over_failed':
+        setWatchState(sessionId, 'watching', String(data.error ?? 'take over failed'));
+        break;
       case "window_list":
         setWindowList(sessionId, data.windows ?? []);
         break;
@@ -139,7 +162,7 @@ export function useEventDispatch(sessionId: string) {
         });
         break;
     }
-  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, pushPermission, addTab, setMetadata, updateUsage, setCanvas]);
+  }, [sessionId, appendEvent, setStreaming, setLastEventId, setComponent, updateComponent, setInputRequest, pushPermission, addTab, setMetadata, updateUsage, setCanvas, setWatchState, setWatchTakeOver, updateWatchTimestamp]);
 
   return dispatch;
 }

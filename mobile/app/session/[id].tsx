@@ -1,14 +1,15 @@
 import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
-import { View, Text, Pressable, FlatList, Keyboard, Modal, TextInput } from 'react-native';
+import { View, Text, Pressable, FlatList, Keyboard, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWebSocket } from '../../src/hooks/useWebSocket';
 import { useStreaming } from '../../src/hooks/useStreaming';
-import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS, EMPTY_PERMISSION_QUEUE } from '../../src/store/messages';
+import { useMessageStore, ChatMessage, ContentBlock, EMPTY_TABS, EMPTY_PERMISSION_QUEUE, EMPTY_WATCH_INFO } from '../../src/store/messages';
 import { useConnectionStore } from '../../src/store/connection';
 import { useStreamStore, EMPTY_STREAM_TABS } from '../../src/store/stream-store';
 import { ConnectionBadge } from '../../src/components/ConnectionBadge';
 import { InputBar } from '../../src/components/InputBar';
+import { WatchBanner } from '../../src/components/WatchBanner';
 import { WorkspaceView } from '../../src/components/WorkspaceView';
 import { StreamView } from '../../src/components/StreamView';
 import { WindowPicker } from '../../src/components/WindowPicker';
@@ -24,8 +25,16 @@ type GuiItem =
 
 export default function SessionScreen() {
   const colors = useColors();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const sessionId = id ?? '';
+  const params = useLocalSearchParams<{
+    id: string;
+    watch?: string;
+    claudeSessionId?: string;
+    projectPath?: string;
+  }>();
+  const sessionId = params.id ?? '';
+  const isWatchMode = params.watch === 'true';
+  const claudeSessionId = params.claudeSessionId;
+  const projectPath = params.projectPath ? decodeURIComponent(params.projectPath) : undefined;
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<GuiItem>>(null);
   const shouldAutoScroll = useRef(true);
@@ -42,6 +51,14 @@ export default function SessionScreen() {
   const { setPickerOpen } = useStreamStore.getState();
   const bridgeUrl = useConnectionStore((s) => s.bridgeUrl);
   const authToken = useConnectionStore((s) => s.authToken);
+  const watchState = useMessageStore((s) => s.watchInfo[sessionId] ?? EMPTY_WATCH_INFO).state;
+
+  // initialize watch state in store on mount
+  useEffect(() => {
+    if (isWatchMode) {
+      useMessageStore.getState().setWatchState(sessionId, 'watching');
+    }
+  }, [isWatchMode, sessionId]);
 
   // stream tab edit modal
   const [editingStream, setEditingStream] = useState<string | null>(null);
@@ -214,7 +231,7 @@ export default function SessionScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ title: 'chat', headerRight: () => <ConnectionBadge /> }}
+        options={{ title: isWatchMode ? 'watching' : 'chat', headerRight: () => <ConnectionBadge /> }}
       />
       <View
         style={{ flex: 1, backgroundColor: colors.bg.primary, paddingBottom: keyboardHeight ? keyboardHeight + 20 : insets.bottom }}
@@ -242,9 +259,19 @@ export default function SessionScreen() {
               keyboardDismissMode="interactive"
               keyExtractor={keyExtractor}
               contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
+              ListFooterComponent={
+                isWatchMode && isStreaming ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
+                    <ActivityIndicator size="small" color={colors.text.muted} />
+                    <Text style={{ color: colors.text.subtle, fontSize: 13 }}>Claude is responding...</Text>
+                  </View>
+                ) : null
+              }
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center pt-32">
-                  <Text className="text-base" style={{ color: colors.text.dim }}>send a message to start</Text>
+                  <Text className="text-base" style={{ color: colors.text.dim }}>
+                    {isWatchMode ? 'watching terminal session...' : 'send a message to start'}
+                  </Text>
                 </View>
               }
             />
@@ -288,7 +315,16 @@ export default function SessionScreen() {
           </View>
         ) : null}
 
-        <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
+        {watchState ? (
+          <WatchBanner
+            sessionId={sessionId}
+            claudeSessionId={claudeSessionId}
+            projectPath={projectPath}
+            sendRaw={sendRaw}
+          />
+        ) : (
+          <InputBar sessionId={sessionId} isStreaming={isStreaming} onSend={sendMessage} />
+        )}
 
         <WindowPicker
           sessionId={sessionId}
