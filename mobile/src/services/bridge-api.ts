@@ -1,19 +1,11 @@
 import { useConnectionStore } from '../store/connection';
+import type { Session } from '../store/sessions';
 
 interface Project {
   name: string;
   path: string;
   hasClaude: boolean;
   isGit: boolean;
-}
-
-interface Session {
-  id: string;
-  projectPath: string;
-  projectName: string;
-  createdAt: string;
-  alive: boolean;
-  lastMessage?: string;
 }
 
 interface DebugInfo {
@@ -83,6 +75,7 @@ export const bridgeApi = {
       projectName: s.projectPath.split('/').filter(Boolean).pop() ?? s.projectPath,
       createdAt: s.createdAt,
       alive: s.alive,
+      sessionType: "vibelink" as const,
     }));
   },
 
@@ -102,6 +95,7 @@ export const bridgeApi = {
       projectName: name,
       createdAt: new Date().toISOString(),
       alive: true,
+      sessionType: "vibelink",
     };
   },
 
