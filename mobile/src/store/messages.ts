@@ -31,6 +31,7 @@ interface MessageState {
   setWatchState: (sessionId: string, state: WatchState, error?: string | null) => void;
   setWatchTakeOver: (sessionId: string, newSessionId: string, wsUrl: string) => void;
   updateWatchTimestamp: (sessionId: string) => void;
+  copyEvents: (fromSessionId: string, toSessionId: string) => void;
   clearSession: (sessionId: string) => void;
 }
 
@@ -177,6 +178,14 @@ export const useMessageStore = create<MessageState>((set) => ({
           ...state.watchInfo,
           [sessionId]: { ...existing, lastUpdate: Date.now() },
         },
+      };
+    }),
+
+  copyEvents: (fromSessionId, toSessionId) =>
+    set((state) => {
+      const existing = state.events[fromSessionId] ?? [];
+      return {
+        events: { ...state.events, [toSessionId]: [...existing] },
       };
     }),
 
