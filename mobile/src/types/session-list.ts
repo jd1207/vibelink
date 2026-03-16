@@ -55,9 +55,18 @@ export function classifySessions(
   claudeSessions: ClaudeSession[],
   vlSessionValues: Session[],
 ): { activeSessions: DisplaySession[]; idleSessions: DisplaySession[] } {
-  // only block terminal display if the bridge session is alive
+  // terminal wins: if a live CLI session exists for a project path,
+  // the vibelink session yields (user went back to terminal)
+  const liveTerminalPaths = new Set(
+    claudeSessions.filter((cs) => cs.alive).map((cs) => cs.projectPath),
+  );
+
+  // terminal sessions: all live CLI sessions that aren't managed by an alive
+  // bridge session that has NO competing terminal process
   const aliveVlPaths = new Set(
-    vlSessionValues.filter((vl) => vl.alive).map((vl) => vl.projectPath),
+    vlSessionValues
+      .filter((vl) => vl.alive && !liveTerminalPaths.has(vl.projectPath))
+      .map((vl) => vl.projectPath),
   );
 
   const terminalSessions: DisplaySession[] = claudeSessions
@@ -73,16 +82,20 @@ export function classifySessions(
       claudeSessionId: cs.sessionId,
     }));
 
-  const vibelinkDisplaySessions: DisplaySession[] = vlSessionValues.filter((vl) => vl.alive).map((vl) => ({
-    key: `vibelink-${vl.id}`,
-    sessionType: 'vibelink' as SessionType,
-    projectName: vl.projectName,
-    projectPath: vl.projectPath,
-    lastActivity: vl.createdAt,
-    lastMessage: vl.lastMessage ?? null,
-    gitBranch: vl.gitBranch ?? null,
-    vibelinkSessionId: vl.id,
-  }));
+  // vibelink sessions: only show if alive AND no live terminal process
+  // in the same project (terminal takes priority — user went back to desk)
+  const vibelinkDisplaySessions: DisplaySession[] = vlSessionValues
+    .filter((vl) => vl.alive && !liveTerminalPaths.has(vl.projectPath))
+    .map((vl) => ({
+      key: `vibelink-${vl.id}`,
+      sessionType: 'vibelink' as SessionType,
+      projectName: vl.projectName,
+      projectPath: vl.projectPath,
+      lastActivity: vl.createdAt,
+      lastMessage: vl.lastMessage ?? null,
+      gitBranch: vl.gitBranch ?? null,
+      vibelinkSessionId: vl.id,
+    }));
 
   const activeSessions = [...terminalSessions, ...vibelinkDisplaySessions].sort(
     (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
