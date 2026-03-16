@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useMessageStore, ClaudeEvent, ChatMessage } from '../store/messages';
 import { parseContentBlocks } from './parseContentBlocks';
 
@@ -9,17 +9,21 @@ export function useStreaming(sessionId: string): ChatMessage[] {
   const streamBufferRef = useRef('');
   const prevSessionIdRef = useRef(sessionId);
 
+  // force re-render when events first arrive (fixes watch session initial load)
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (eventsLength > 0 && lastProcessedRef.current === 0) {
+      setTick((t) => t + 1);
+    }
+  }, [eventsLength]);
+
   return useMemo(() => {
-    // reset refs when sessionId changes (e.g. after take-over navigation)
+    // reset refs when sessionId changes (e.g. after take-over swap)
     if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
       lastProcessedRef.current = 0;
       messagesRef.current = [];
       streamBufferRef.current = '';
-    }
-
-    if (eventsLength === 0 && lastProcessedRef.current === 0) {
-      return messagesRef.current;
     }
 
     if (eventsLength === lastProcessedRef.current) {
