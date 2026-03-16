@@ -323,16 +323,34 @@ export async function scanClaudeSessions(): Promise<ClaudeSession[]> {
 
   for (const [, { sid, entry }] of unmatchedByCwd) {
     const projectName = entry.cwd.split("/").filter(Boolean).pop() ?? entry.cwd;
+
+    // try to get metadata from the most recent JSONL in the same project dir
+    let model: string | null = null;
+    let gitBranch: string | null = null;
+    let name: string | null = null;
+    let recentMessages: RecentMessage[] = [];
+    let lastActivity = new Date(entry.startedAt).toISOString();
+
+    const recentJsonl = await findMostRecentJsonl(entry.cwd);
+    if (recentJsonl) {
+      const parsed = await parseSessionJsonl(recentJsonl);
+      model = parsed.model;
+      gitBranch = parsed.gitBranch;
+      name = parsed.name;
+      recentMessages = parsed.recentMessages;
+      if (parsed.lastActivity) lastActivity = parsed.lastActivity;
+    }
+
     sessions.push({
       sessionId: sid,
       projectPath: entry.cwd,
-      projectName,
-      lastActivity: new Date(entry.startedAt).toISOString(),
-      model: null,
-      gitBranch: null,
-      name: null,
+      projectName: name || projectName,
+      lastActivity,
+      model,
+      gitBranch,
+      name,
       alive: true,
-      recentMessages: [],
+      recentMessages,
     });
   }
 
