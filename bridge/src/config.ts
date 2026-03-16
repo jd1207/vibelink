@@ -14,4 +14,7 @@ export const config = {
   wsHeartbeatTimeoutMs: parseInt(env.WS_HEARTBEAT_TIMEOUT_MS ?? "10000", 10),
   requestInputTimeoutMs: parseInt(env.REQUEST_INPUT_TIMEOUT_MS ?? "300000", 10),
   maxConcurrentStreams: parseInt(env.MAX_CONCURRENT_STREAMS ?? "3", 10),
+  maxWatchSessions: parseInt(env.MAX_WATCH_SESSIONS ?? "5", 10),
+  watchSessionReaperIntervalMs: 10000,
+  watchSessionGracePeriodMs: 5000,
 };
