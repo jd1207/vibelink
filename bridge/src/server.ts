@@ -414,8 +414,10 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     const pidEntry = pids.get(claudeSessionId);
     const projectPath = pidEntry?.cwd || "/";
 
-    // create a new vibelink-managed session that resumes the claude session
-    const newSession = sessionManager.create(projectPath, claudeSessionId, true);
+    // create a new vibelink-managed session — use --continue to pick up the
+    // most recent conversation in the directory (more reliable than --resume
+    // since PID session IDs don't always match JSONL filenames)
+    const newSession = sessionManager.create(projectPath, undefined, true, true);
     newSession.claudeSessionId = claudeSessionId;
 
     // hydrate from the watch session's buffer (more reliable than re-reading
@@ -820,7 +822,7 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
           const pidEntry = pids.get(csid);
           const projectPath = pidEntry?.cwd || session.projectPath || "/";
 
-          const newSession = sessionManager.create(projectPath, csid, true);
+          const newSession = sessionManager.create(projectPath, undefined, true, true);
           newSession.claudeSessionId = csid;
 
           // copy watch session's buffer to new session (more reliable than
