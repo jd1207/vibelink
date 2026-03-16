@@ -55,10 +55,13 @@ export function classifySessions(
   claudeSessions: ClaudeSession[],
   vlSessionValues: Session[],
 ): { activeSessions: DisplaySession[]; idleSessions: DisplaySession[] } {
-  const vlSessionPaths = new Set(vlSessionValues.map((vl) => vl.projectPath));
+  // only block terminal display if the bridge session is alive
+  const aliveVlPaths = new Set(
+    vlSessionValues.filter((vl) => vl.alive).map((vl) => vl.projectPath),
+  );
 
   const terminalSessions: DisplaySession[] = claudeSessions
-    .filter((cs) => cs.alive && !vlSessionPaths.has(cs.projectPath))
+    .filter((cs) => cs.alive && !aliveVlPaths.has(cs.projectPath))
     .map((cs) => ({
       key: `terminal-${cs.sessionId}`,
       sessionType: 'terminal' as SessionType,
@@ -70,7 +73,7 @@ export function classifySessions(
       claudeSessionId: cs.sessionId,
     }));
 
-  const vibelinkDisplaySessions: DisplaySession[] = vlSessionValues.map((vl) => ({
+  const vibelinkDisplaySessions: DisplaySession[] = vlSessionValues.filter((vl) => vl.alive).map((vl) => ({
     key: `vibelink-${vl.id}`,
     sessionType: 'vibelink' as SessionType,
     projectName: vl.projectName,
