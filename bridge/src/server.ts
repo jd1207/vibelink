@@ -453,24 +453,24 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
     try {
       const sessions = await scanClaudeSessions();
 
-      // auto-clean stale bridge sessions: if a terminal CLI process is alive
-      // for the same project as a bridge session, the user went back to terminal.
-      // check PID files directly (not JSONL scanner) because PID session IDs
-      // don't always match JSONL filenames.
+      // auto-clean stale bridge sessions: if a NEWER terminal CLI process
+      // started in the same project AFTER the bridge session was created,
+      // the user went back to terminal. Only clean if the PID started after
+      // the bridge session (old stale PIDs should not trigger cleanup).
       const pids = await loadActivePids();
       const bridgeSessions = sessionManager.list();
       for (const bs of bridgeSessions) {
         const full = sessionManager.get(bs.id);
         if (!full || full.isWatchSession || !full.process.alive) continue;
         const bridgePid = full.process.pid;
-        // check if ANY other alive Claude process exists in the same cwd
+        const bridgeCreatedAt = full.createdAt.getTime();
         for (const [, pidEntry] of pids) {
           if (pidEntry.pid === bridgePid) continue;
           if (pidEntry.cwd !== bs.projectPath) continue;
+          if (pidEntry.startedAt < bridgeCreatedAt) continue; // older than bridge — ignore
           if (!isPidAlive(pidEntry.pid)) continue;
           if (!(await validatePid(pidEntry.pid))) continue;
-          // found a different alive Claude process in the same project
-          console.log(`[sessions] auto-cleaning bridge session ${bs.id.slice(0, 8)} — terminal pid ${pidEntry.pid} resumed in ${bs.projectPath}`);
+          console.log(`[sessions] auto-cleaning bridge session ${bs.id.slice(0, 8)} — newer terminal pid ${pidEntry.pid} in ${bs.projectPath}`);
           sessionManager.delete(bs.id);
           break;
         }
