@@ -13,9 +13,9 @@ Claude Code CLI <-- stdio (JSON-RPC) --> [MCP Server]
                                          - request_input (blocking)
                                          - send_notification
                                               |
-                                         [IPC Client] --> Bridge (/tmp/vibelink.sock)
+                                         [IPC Client] --> Bridge (TCP 127.0.0.1:3401)
                                               |
-                                         (NDJSON over Unix socket)
+                                         (NDJSON over TCP)
 ```
 
 The MCP server is a standalone process using the `@modelcontextprotocol/sdk` with stdio transport. Claude Code auto-launches it on every session. It reads `VIBELINK_SESSION_ID` from the environment to identify itself to the Bridge via IPC handshake.
@@ -30,6 +30,15 @@ The MCP server is a standalone process using the `@modelcontextprotocol/sdk` wit
 | `update_tab` | Update content in an existing tab | `tabId`, `updates` | No |
 | `request_input` | Ask user for input and wait for response | `prompt`, `options?` | Yes (5 min timeout) |
 | `send_notification` | Push a notification to the app | `message`, `level` | No |
+| `render_html` | Render HTML artifact in workspace canvas | `html`, `title?` | No |
+| `set_preview_url` | Show localhost URL in workspace canvas | `url`, `title?` | No |
+| `clear_workspace` | Clear the workspace canvas | — | No |
+| `list_windows` | List capturable desktop windows | — | No |
+| `stream_window` | Start MJPEG stream of a desktop window | `windowId`, `fps?` | No |
+| `stop_stream` | Stop an active screen mirror stream | `streamId` | No |
+| `stream_status` | Get status of active streams | — | No |
+| `browse_files` | Browse project directory listing | `path?` | No |
+| `view_file` | View file contents with syntax highlighting | `path` | No |
 
 When the Bridge is unavailable, all tools return an error message: "Bridge unavailable, UI tools temporarily disabled". Claude can then decide how to proceed.
 
@@ -55,7 +64,7 @@ Used with `render_ui`'s `type` parameter:
 ```
 1. Claude calls render_ui({ id: "deps", type: "decision_table", data: {...} })
 2. Claude Code sends tool_use to MCP server via stdio
-3. MCP server writes ui_update JSON to /tmp/vibelink.sock
+3. MCP server writes ui_update JSON to Bridge via TCP
 4. Bridge receives on IPC, wraps with eventId, broadcasts via WebSocket
 5. Phone renders the component natively
 6. MCP server returns { success: true } to Claude immediately
@@ -89,7 +98,7 @@ The MCP server connects to the Bridge IPC socket on startup. If the Bridge isn't
 | Variable | Default | Description |
 |---|---|---|
 | `VIBELINK_SESSION_ID` | (required) | Set by Bridge when spawning Claude. Identifies this session on IPC handshake. |
-| `VIBELINK_IPC_SOCKET` | `/tmp/vibelink.sock` | Path to the Bridge's Unix socket |
+| `VIBELINK_IPC_SOCKET` | `tcp:3401` | Bridge IPC transport — `tcp:PORT` for TCP or a file path for Unix socket |
 
 The MCP server exits immediately if `VIBELINK_SESSION_ID` is not set.
 
@@ -98,12 +107,15 @@ The MCP server exits immediately if `VIBELINK_SESSION_ID` is not set.
 | File | Description |
 |---|---|
 | `src/index.ts` | MCP server setup, stdio transport, tool registration |
-| `src/ipc-client.ts` | Unix socket client with auto-reconnect and exponential backoff |
+| `src/ipc-client.ts` | TCP/IPC client with auto-reconnect and exponential backoff |
 | `src/types.ts` | Component type definitions, IPC message interface |
 | `src/tools/render-ui.ts` | `render_ui` and `update_ui` tool handlers |
 | `src/tools/tabs.ts` | `create_tab` and `update_tab` tool handlers |
 | `src/tools/input.ts` | `request_input` tool handler (blocking with timeout) |
 | `src/tools/notify.ts` | `send_notification` tool handler |
+| `src/tools/workspace.ts` | `render_html`, `set_preview_url`, `clear_workspace` tool handlers |
+| `src/tools/screen-mirror.ts` | `list_windows`, `stream_window`, `stop_stream`, `stream_status` tool handlers |
+| `src/tools/file-browser.ts` | `browse_files`, `view_file` tool handlers |
 
 ## Development
 
