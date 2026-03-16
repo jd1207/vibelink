@@ -120,10 +120,11 @@ export function useEventDispatch(sessionId: string) {
         break;
       case 'watch_ended': {
         const reason = data.reason as string | undefined;
+        const csid = data.claudeSessionId as string | undefined;
         if (reason === 'taken_over') {
           setWatchState(sessionId, 'ended', 'session taken over by another device');
         } else if (reason === 'terminal_resumed') {
-          setWatchState(sessionId, 'ended', 'continued in terminal');
+          setWatchState(sessionId, 'ended', 'continued in terminal', csid ?? undefined);
         } else if (reason === 'process_exited') {
           setWatchState(sessionId, 'ended');
         } else {

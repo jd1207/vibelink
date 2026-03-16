@@ -45,8 +45,19 @@ export default function SessionScreen() {
   const [activeClaudeSessionId, setActiveClaudeSessionId] = useState(initialClaudeSessionId);
   const [isWatching, setIsWatching] = useState(isWatchMode);
 
+  const handleSessionLost = useCallback(() => {
+    if (!projectPath) return;
+    const csid = activeClaudeSessionId;
+    bridgeApi.createSession(projectPath, false, csid || undefined).then((newSession) => {
+      const oldId = activeSessionId;
+      useMessageStore.getState().copyEvents(oldId, newSession.id);
+      setActiveSessionId(newSession.id);
+      setIsWatching(false);
+    }).catch(() => {});
+  }, [activeSessionId, activeClaudeSessionId, projectPath]);
+
   const [activeTab, setActiveTab] = React.useState('gui');
-  const { isConnected, sendMessage, sendRaw } = useWebSocket(activeSessionId);
+  const { isConnected, sendMessage, sendRaw } = useWebSocket(activeSessionId, handleSessionLost);
   const streamedMessages = useStreaming(activeSessionId);
   const isStreaming = useMessageStore((s) => s.isStreaming[activeSessionId] ?? false);
   const dynamicTabs = useMessageStore((s) => s.tabs[activeSessionId] ?? EMPTY_TABS);
@@ -60,27 +71,31 @@ export default function SessionScreen() {
   const watchInfo = useMessageStore((s) => s.watchInfo[activeSessionId] ?? EMPTY_WATCH_INFO);
   const watchState = watchInfo.state;
 
-  // initialize watch state in store on mount
+  // initialize watch state in store on mount (one-time only)
+  const watchInitRef = useRef(false);
   useEffect(() => {
-    if (isWatchMode) {
+    if (isWatchMode && !watchInitRef.current) {
+      watchInitRef.current = true;
       useMessageStore.getState().setWatchState(activeSessionId, 'watching');
     }
-  }, [isWatchMode, activeSessionId]);
+  }, []);
 
   // auto-reconnect to terminal when "continued in terminal" is detected
   const reconnectingRef = useRef(false);
   useEffect(() => {
     if (watchState !== 'ended') return;
     if (watchInfo.error !== 'continued in terminal') return;
-    if (!activeClaudeSessionId || reconnectingRef.current) return;
+    const csid = watchInfo.claudeSessionId || activeClaudeSessionId;
+    if (!csid || reconnectingRef.current) return;
     reconnectingRef.current = true;
 
     // auto-create a watch session for the terminal and swap in-place
-    bridgeApi.watchSession(activeClaudeSessionId).then((result) => {
+    bridgeApi.watchSession(csid).then((result) => {
       const oldId = activeSessionId;
       useMessageStore.getState().copyEvents(oldId, result.sessionId);
       useMessageStore.getState().setWatchState(result.sessionId, 'watching');
       setActiveSessionId(result.sessionId);
+      setActiveClaudeSessionId(csid);
       setIsWatching(true);
       if (oldId && oldId !== result.sessionId) {
         bridgeApi.deleteSession(oldId).catch(() => {});
@@ -89,7 +104,7 @@ export default function SessionScreen() {
     }).catch(() => {
       reconnectingRef.current = false;
     });
-  }, [watchState, watchInfo.error, activeClaudeSessionId, activeSessionId]);
+  }, [watchState, watchInfo.error, watchInfo.claudeSessionId, activeClaudeSessionId, activeSessionId]);
 
   // session swap handler — copies events for continuity, updates state in-place
   const handleSessionSwap = useCallback((newSessionId: string, watching: boolean) => {

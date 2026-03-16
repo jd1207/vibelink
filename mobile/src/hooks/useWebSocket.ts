@@ -11,13 +11,15 @@ interface QueuedMessage {
 const MAX_BACKOFF_MS = 30000;
 const INITIAL_BACKOFF_MS = 1000;
 
-export function useWebSocket(sessionId: string) {
+export function useWebSocket(sessionId: string, onSessionLost?: () => void) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const queueRef = useRef<QueuedMessage[]>([]);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const onSessionLostRef = useRef(onSessionLost);
+  onSessionLostRef.current = onSessionLost;
 
   // read store values via refs to avoid re-render dependency
   const bridgeUrlRef = useRef(useConnectionStore.getState().bridgeUrl);
@@ -87,6 +89,12 @@ export function useWebSocket(sessionId: string) {
       setIsConnected(false);
       useConnectionStore.getState().setConnected(false);
       wsRef.current = null;
+
+      if (event.code === 1008) {
+        console.log('[ws] session unknown — not reconnecting');
+        onSessionLostRef.current?.();
+        return;
+      }
 
       // schedule reconnect with backoff
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
