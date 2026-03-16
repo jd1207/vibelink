@@ -10,7 +10,16 @@ import { ShutdownManager } from "./shutdown.js";
 import type { BufferedEvent } from "./event-buffer.js";
 import { dashboardHtml } from "./dashboard.js";
 import { CaptureManager, listWindows, packFrame } from "./screen-capture.js";
-import { scanClaudeSessions, deleteClaudeSession, readSessionHistory } from "./session-scanner.js";
+import { JsonlWatcher } from "./jsonl-watcher.js";
+import {
+  scanClaudeSessions,
+  deleteClaudeSession,
+  readSessionHistory,
+  findJsonlPath,
+  loadActivePids,
+  validatePid,
+  isPidAlive,
+} from "./session-scanner.js";
 import { execSync } from "child_process";
 
 // get tailscale IP for rewriting localhost URLs so phone can reach dev servers
@@ -77,6 +86,80 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   await ipcServer.start(config.ipcSocketPath).catch((err) => {
     console.error(`[ipc] failed to start IPC server: ${err.message}`);
   });
+
+  // watch session tracking — keyed by claudeSessionId for deduplication
+  const activeWatchers = new Map<string, {
+    watcher: JsonlWatcher;
+    watchSessionIds: Set<string>;
+  }>();
+
+  function cleanupWatchSession(watchSessionId: string): void {
+    const session = sessionManager.get(watchSessionId);
+    if (!session?.isWatchSession) return;
+
+    const csid = session.claudeSessionId;
+    if (csid) {
+      const entry = activeWatchers.get(csid);
+      if (entry) {
+        entry.watchSessionIds.delete(watchSessionId);
+        if (entry.watchSessionIds.size === 0) {
+          entry.watcher.stop();
+          activeWatchers.delete(csid);
+        }
+      }
+    }
+    sessionManager.delete(watchSessionId);
+  }
+
+  // reaper: clean up watch sessions with no connected clients after grace period
+  const watchReaperInterval = setInterval(() => {
+    for (const s of sessionManager.list()) {
+      const session = sessionManager.get(s.id);
+      if (!session?.isWatchSession) continue;
+
+      const clientCount = wsTracker.getSessionClients(s.id);
+      if (clientCount > 0) {
+        session.disconnectedAt = undefined;
+        continue;
+      }
+
+      if (!session.disconnectedAt) {
+        session.disconnectedAt = Date.now();
+        continue;
+      }
+
+      if (Date.now() - session.disconnectedAt >= config.watchSessionGracePeriodMs) {
+        console.log(`[reaper] cleaning up watch session ${s.id.slice(0, 8)} (no clients)`);
+        cleanupWatchSession(s.id);
+      }
+    }
+  }, config.watchSessionReaperIntervalMs);
+
+  // kill a terminal Claude process by its claude session ID
+  async function killTerminalPid(claudeSessionId: string): Promise<boolean> {
+    const pids = await loadActivePids();
+    const entry = pids.get(claudeSessionId);
+    if (!entry) return true;
+
+    if (!isPidAlive(entry.pid)) return true;
+    const valid = await validatePid(entry.pid);
+    if (!valid) return true;
+
+    try { process.kill(entry.pid, "SIGTERM"); } catch { return true; }
+
+    // poll for exit — 500ms intervals, 5 seconds max
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (!isPidAlive(entry.pid)) return true;
+    }
+
+    // re-validate before escalating to SIGKILL
+    const stillValid = await validatePid(entry.pid);
+    if (!stillValid) return true;
+
+    try { process.kill(entry.pid, "SIGKILL"); } catch { /* already dead */ }
+    return true;
+  }
 
   const expressApp = express();
   expressApp.use(express.json());
@@ -189,6 +272,171 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       next();
     });
   }
+
+  // watch a running Claude Code terminal session (read-only)
+  expressApp.post("/sessions/watch", async (req, res) => {
+    const { claudeSessionId } = req.body as { claudeSessionId?: string };
+    if (!claudeSessionId) {
+      res.status(400).json({ error: "claudeSessionId required" });
+      return;
+    }
+
+    // enforce max watch sessions
+    let watchCount = 0;
+    for (const s of sessionManager.list()) {
+      const sess = sessionManager.get(s.id);
+      if (sess?.isWatchSession) watchCount++;
+    }
+    if (watchCount >= config.maxWatchSessions) {
+      res.status(429).json({ error: "max watch sessions reached" });
+      return;
+    }
+
+    const jsonlPath = await findJsonlPath(claudeSessionId);
+    if (!jsonlPath) {
+      res.status(404).json({ error: "session JSONL not found" });
+      return;
+    }
+
+    const pids = await loadActivePids();
+    const pidEntry = pids.get(claudeSessionId);
+    if (!pidEntry || !isPidAlive(pidEntry.pid) || !(await validatePid(pidEntry.pid))) {
+      res.status(404).json({ error: "session not running" });
+      return;
+    }
+
+    const projectPath = pidEntry.cwd || "/";
+    const watchSession = sessionManager.createWatchSession(claudeSessionId, projectPath);
+
+    // reuse or create watcher for this claude session
+    let entry = activeWatchers.get(claudeSessionId);
+    if (!entry) {
+      const watcher = new JsonlWatcher({ jsonlPath, pid: pidEntry.pid });
+
+      watcher.on("events", (events: Array<Record<string, unknown>>) => {
+        const watchEntry = activeWatchers.get(claudeSessionId);
+        if (!watchEntry) return;
+        for (const wsid of watchEntry.watchSessionIds) {
+          for (const event of events) {
+            const sess = sessionManager.get(wsid);
+            if (!sess) continue;
+            const buffered = sess.buffer.push({ type: "claude_event", event });
+            wsTracker.broadcastToSession(wsid, {
+              eventId: buffered.eventId,
+              type: "claude_event",
+              event,
+            });
+          }
+        }
+      });
+
+      watcher.on("ended", (reason: string) => {
+        const watchEntry = activeWatchers.get(claudeSessionId);
+        if (!watchEntry) return;
+        for (const wsid of watchEntry.watchSessionIds) {
+          wsTracker.broadcastToSession(wsid, {
+            type: "watch_ended",
+            reason,
+            claudeSessionId,
+          });
+        }
+        // clean up all watch sessions for this claude session
+        const ids = [...watchEntry.watchSessionIds];
+        for (const wsid of ids) {
+          cleanupWatchSession(wsid);
+        }
+      });
+
+      entry = { watcher, watchSessionIds: new Set() };
+      activeWatchers.set(claudeSessionId, entry);
+
+      await watcher.loadHistory();
+      watcher.startWatching();
+    }
+
+    entry.watchSessionIds.add(watchSession.id);
+
+    // send existing buffer to the new session (history loaded by watcher)
+    const wsUrl = `ws://localhost:${port}/ws/${watchSession.id}`;
+    res.status(201).json({ sessionId: watchSession.id, wsUrl });
+  });
+
+  // kill a running Claude Code terminal session
+  expressApp.post("/sessions/end-terminal", async (req, res) => {
+    const { claudeSessionId } = req.body as { claudeSessionId?: string };
+    if (!claudeSessionId) {
+      res.status(400).json({ error: "claudeSessionId required" });
+      return;
+    }
+    await killTerminalPid(claudeSessionId);
+    res.status(204).send();
+  });
+
+  // take over a watched session — kill terminal, spawn vibelink-managed process
+  expressApp.post("/sessions/:id/take-over", async (req, res) => {
+    const { claudeSessionId } = req.body as { claudeSessionId?: string };
+    if (!claudeSessionId) {
+      res.status(400).json({ error: "claudeSessionId required" });
+      return;
+    }
+
+    // kill the terminal process
+    await killTerminalPid(claudeSessionId);
+
+    // notify other watchers and clean up
+    const watchEntry = activeWatchers.get(claudeSessionId);
+    if (watchEntry) {
+      for (const wsid of watchEntry.watchSessionIds) {
+        wsTracker.broadcastToSession(wsid, {
+          type: "watch_ended",
+          reason: "taken_over",
+          claudeSessionId,
+        });
+      }
+      watchEntry.watcher.stop();
+      const ids = [...watchEntry.watchSessionIds];
+      for (const wsid of ids) {
+        sessionManager.delete(wsid);
+      }
+      activeWatchers.delete(claudeSessionId);
+    }
+
+    // determine project path from PID entry or fallback
+    const pids = await loadActivePids();
+    const pidEntry = pids.get(claudeSessionId);
+    const projectPath = pidEntry?.cwd || "/";
+
+    // create a new vibelink-managed session that resumes the claude session
+    const newSession = sessionManager.create(projectPath, claudeSessionId, true);
+    newSession.claudeSessionId = claudeSessionId;
+
+    // hydrate with history
+    try {
+      const history = await readSessionHistory(claudeSessionId);
+      for (const msg of history) {
+        newSession.buffer.push({ type: "claude_event", event: msg });
+      }
+      console.log(`[take-over] hydrated ${history.length} messages from ${claudeSessionId.slice(0, 8)}`);
+    } catch (err) {
+      console.error("[take-over] failed to hydrate history:", err);
+    }
+
+    // set up capture manager
+    const captureManager = new CaptureManager();
+    newSession.captureManager = captureManager;
+    captureManager.on("frame", (windowId: string, jpeg: Buffer, seq: number) => {
+      wsTracker.broadcastBinary(newSession.id, packFrame(windowId, jpeg, seq));
+    });
+    captureManager.on("error", (windowId: string, err: Error) => {
+      wsTracker.broadcastToSession(newSession.id, { type: "stream_error", windowId, error: err.message });
+    });
+    captureManager.on("stopped", (windowId: string) => {
+      wsTracker.broadcastToSession(newSession.id, { type: "stream_stopped", windowId });
+    });
+
+    const wsUrl = `ws://localhost:${port}/ws/${newSession.id}`;
+    res.status(201).json({ sessionId: newSession.id, wsUrl });
+  });
 
   // all claude code sessions on this machine (scans ~/.claude/projects/)
   expressApp.get("/claude-sessions", async (_req, res) => {
@@ -465,7 +713,14 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
       }
     }
 
-    ws.on("message", (data) => {
+    ws.on("close", () => {
+      const s = sessionManager.get(sessionId);
+      if (s?.isWatchSession) {
+        s.disconnectedAt = Date.now();
+      }
+    });
+
+    ws.on("message", async (data) => {
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(data.toString());
@@ -482,7 +737,99 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
         return;
       }
 
+      if (msg.type === "stop_watching") {
+        cleanupWatchSession(sessionId);
+        return;
+      }
+
+      if (msg.type === "take_over") {
+        const csid = typeof msg.claudeSessionId === "string" ? msg.claudeSessionId : session.claudeSessionId;
+        if (!csid) {
+          ws.send(JSON.stringify({ type: "take_over_failed", error: "no claudeSessionId" }));
+          return;
+        }
+        try {
+          await killTerminalPid(csid);
+
+          // notify other watchers and clean up
+          const watchEntry = activeWatchers.get(csid);
+          if (watchEntry) {
+            for (const wsid of watchEntry.watchSessionIds) {
+              if (wsid !== sessionId) {
+                wsTracker.broadcastToSession(wsid, {
+                  type: "watch_ended",
+                  reason: "taken_over",
+                  claudeSessionId: csid,
+                });
+              }
+            }
+            watchEntry.watcher.stop();
+            const ids = [...watchEntry.watchSessionIds];
+            for (const wsid of ids) {
+              if (wsid !== sessionId) {
+                sessionManager.delete(wsid);
+              }
+            }
+            activeWatchers.delete(csid);
+          }
+
+          // respawn as a vibelink-managed session
+          const pids = await loadActivePids();
+          const pidEntry = pids.get(csid);
+          const projectPath = pidEntry?.cwd || session.projectPath || "/";
+
+          const newSession = sessionManager.create(projectPath, csid, true);
+          newSession.claudeSessionId = csid;
+
+          try {
+            const history = await readSessionHistory(csid);
+            for (const m of history) {
+              newSession.buffer.push({ type: "claude_event", event: m });
+            }
+          } catch { /* history hydration is best-effort */ }
+
+          const newCaptureManager = new CaptureManager();
+          newSession.captureManager = newCaptureManager;
+          newCaptureManager.on("frame", (windowId: string, jpeg: Buffer, seq: number) => {
+            wsTracker.broadcastBinary(newSession.id, packFrame(windowId, jpeg, seq));
+          });
+          newCaptureManager.on("error", (windowId: string, err: Error) => {
+            wsTracker.broadcastToSession(newSession.id, { type: "stream_error", windowId, error: err.message });
+          });
+          newCaptureManager.on("stopped", (windowId: string) => {
+            wsTracker.broadcastToSession(newSession.id, { type: "stream_stopped", windowId });
+          });
+
+          // clean up the old watch session
+          if (session.isWatchSession) {
+            sessionManager.delete(sessionId);
+          }
+
+          const wsUrl = `ws://localhost:${port}/ws/${newSession.id}`;
+          ws.send(JSON.stringify({
+            type: "take_over_complete",
+            sessionId: newSession.id,
+            wsUrl,
+          }));
+        } catch (err: any) {
+          ws.send(JSON.stringify({
+            type: "take_over_failed",
+            error: err.message || "take-over failed",
+          }));
+        }
+        return;
+      }
+
       if (msg.type === "user_message" && typeof msg.content === "string") {
+        // auto-resume if process died
+        if (!session.process.alive && !session.isWatchSession && !session.respawning) {
+          console.log(`[auto-resume] process dead for ${sessionId.slice(0, 8)}, respawning`);
+          const ok = await sessionManager.respawn(sessionId);
+          if (!ok) {
+            console.error(`[auto-resume] respawn failed for ${sessionId.slice(0, 8)}`);
+            return;
+          }
+        }
         sessionManager.sendMessage(sessionId, msg.content);
         return;
       }
@@ -631,6 +978,15 @@ export async function createApp(options: AppOptions = {}): Promise<AppInstance> 
   });
 
   const shutdown = new ShutdownManager();
+  shutdown.register("watch reaper", async () => {
+    clearInterval(watchReaperInterval);
+  });
+  shutdown.register("active watchers", async () => {
+    for (const [csid, entry] of activeWatchers) {
+      entry.watcher.stop();
+    }
+    activeWatchers.clear();
+  });
   shutdown.register("pending permissions", async () => {
     for (const [id, pending] of pendingPermissions) {
       clearTimeout(pending.timeout);
