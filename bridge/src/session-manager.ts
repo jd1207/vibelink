@@ -5,6 +5,8 @@ import { EventBuffer, type BufferedEvent } from "./event-buffer.js";
 import { config } from "./config.js";
 import type { CaptureManager } from "./screen-capture.js";
 
+const RESPAWN_READY_TIMEOUT_MS = 15_000;
+
 interface SessionManagerOptions {
   claudeCommand?: string;
   claudeArgs?: string[];
@@ -18,6 +20,11 @@ export interface Session {
   createdAt: Date;
   lastEventAt: Date;
   captureManager?: CaptureManager;
+  isWatchSession?: boolean;
+  claudeSessionId?: string;
+  respawning?: boolean;
+  messageQueue?: string[];
+  disconnectedAt?: number;
 }
 
 export class SessionManager extends EventEmitter {
@@ -79,6 +86,97 @@ export class SessionManager extends EventEmitter {
     return session;
   }
 
+  createWatchSession(claudeSessionId: string, projectPath: string): Session {
+    const id = randomUUID();
+    const buffer = new EventBuffer(config.eventBufferSize);
+    const dummyProcess = new EventEmitter() as any;
+    dummyProcess.alive = false;
+    dummyProcess.pid = undefined;
+    dummyProcess.resumeSessionId = claudeSessionId;
+    dummyProcess.send = () => {};
+    dummyProcess.kill = () => {};
+
+    const session: Session = {
+      id,
+      projectPath,
+      process: dummyProcess,
+      buffer,
+      createdAt: new Date(),
+      lastEventAt: new Date(),
+      isWatchSession: true,
+      claudeSessionId,
+    };
+    this.sessions.set(id, session);
+    return session;
+  }
+
+  async respawn(sessionId: string): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    if (session.respawning) return false;
+
+    session.respawning = true;
+    session.messageQueue = [];
+
+    const resumeId = session.process.resumeSessionId || session.claudeSessionId;
+
+    const args = [
+      "--input-format", "stream-json",
+      "--output-format", "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--dangerously-skip-permissions",
+    ];
+    if (resumeId) {
+      args.push("--resume", resumeId);
+    }
+
+    try {
+      const proc = new ClaudeProcess({
+        command: this.options.claudeCommand,
+        args,
+        cwd: session.projectPath,
+        sessionId: session.id,
+      });
+
+      // wait for first event or timeout before flushing queue
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, RESPAWN_READY_TIMEOUT_MS);
+        proc.once("event", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+
+      proc.on("event", (payload: unknown) => {
+        session.lastEventAt = new Date();
+        const buffered: BufferedEvent = session.buffer.push(payload);
+        this.emit("event", session.id, buffered);
+      });
+
+      proc.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+        this.emit("session_exit", session.id, code, signal, proc.resumeSessionId);
+      });
+
+      session.process = proc;
+      session.isWatchSession = false;
+      session.respawning = false;
+
+      const queued = session.messageQueue ?? [];
+      session.messageQueue = undefined;
+      for (const content of queued) {
+        const message = { type: "user", message: { role: "user", content } };
+        proc.send(message);
+      }
+
+      return true;
+    } catch {
+      session.respawning = false;
+      session.messageQueue = undefined;
+      return false;
+    }
+  }
+
   get(id: string): Session | undefined {
     return this.sessions.get(id);
   }
@@ -103,6 +201,10 @@ export class SessionManager extends EventEmitter {
   sendMessage(sessionId: string, content: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
+    if (session.respawning && session.messageQueue) {
+      session.messageQueue.push(content);
+      return;
+    }
     const message = { type: "user", message: { role: "user", content } };
     session.process.send(message);
   }
