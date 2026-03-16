@@ -36,7 +36,7 @@ export class SessionManager extends EventEmitter {
     this.options = options;
   }
 
-  create(projectPath: string, resumeSessionId?: string, skipPermissions?: boolean): Session {
+  create(projectPath: string, resumeSessionId?: string, skipPermissions?: boolean, useContinue?: boolean): Session {
     const id = randomUUID();
 
     let args = this.options.claudeArgs;
@@ -48,7 +48,10 @@ export class SessionManager extends EventEmitter {
         "--include-partial-messages",
       ];
       args.push("--dangerously-skip-permissions");
-      if (resumeSessionId) {
+      if (useContinue) {
+        // --continue picks up the most recent session in the cwd
+        args.push("--continue");
+      } else if (resumeSessionId) {
         args.push("--resume", resumeSessionId);
       }
     }
