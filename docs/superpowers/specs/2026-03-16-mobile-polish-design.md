@@ -8,15 +8,22 @@
 
 ### Overview
 
-Create `mobile/src/components/SettingsSheet.tsx` as a sectioned bottom sheet that replaces `ThemePicker.tsx`. Same props (`visible`, `onClose`, `onDisconnect`) for drop-in replacement.
+Create `mobile/src/components/SettingsSheet.tsx` as a sectioned bottom sheet that replaces `ThemePicker.tsx`. Same props (`visible`, `onClose`, `onDisconnect`) for drop-in replacement. Uses the same `Modal` + backdrop `Pressable` pattern as the existing `ThemePicker` — no third-party bottom sheet library.
 
 ### Sections
 
 1. **Connection** — read-only row showing bridge hostname (strip `http://` prefix, show just `host:port`) + green/red connection dot from `useConnectionStore`. Shows "not connected" when `bridgeUrl` is empty. Informational only, not editable.
 
-2. **Appearance** — collapsed by default. Shows current theme name + accent color swatch. Tap to expand the accordion within the sheet (does NOT close the whole sheet). Selecting a theme collapses just the accordion back, keeping the sheet open. Each theme option shows: accent swatch circle, theme name, checkmark if active. This differs from the old ThemePicker which closed the entire modal on selection.
+2. **Appearance** — collapsed by default. Shows current theme name + accent color swatch. Tap to expand the accordion within the sheet (does NOT close the whole sheet). Animate with `LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)` before toggling — no manual height measurement needed. Selecting a theme collapses just the accordion back, keeping the sheet open. Each theme option shows: accent swatch circle, theme name, checkmark if active. Accordion resets to collapsed state when the sheet closes and reopens.
 
 3. **Disconnect** — red text button at bottom, separated by a divider. Same behavior as current ThemePicker: closes sheet, then calls `onDisconnect` after 300ms delay.
+
+### Accessibility
+
+- `accessibilityRole="button"` on the Appearance accordion toggle
+- `accessibilityState={{ expanded: isOpen }}` on the accordion
+- `accessibilityLabel="disconnect from bridge"` on the disconnect button
+- `accessibilityRole="radiogroup"` on the theme list, `accessibilityRole="radio"` + `accessibilityState={{ checked }}` on each theme option
 
 ### Integration
 
@@ -27,8 +34,8 @@ Note to orchestrator: this touches `index.tsx` which was originally assigned to 
 ### Files
 
 - **Create:** `mobile/src/components/SettingsSheet.tsx`
-- **Modify:** `mobile/app/index.tsx` (import swap only)
-- **Keep:** `mobile/src/components/ThemePicker.tsx` (leave in place until integration confirms no other consumers)
+- **Modify:** `mobile/app/index.tsx` (import swap + skeleton loading state)
+- **Delete:** `mobile/src/components/ThemePicker.tsx` (only consumer is `index.tsx`, confirmed by grep)
 
 ## Task 2 — New `claude-chat-dark` Theme
 
@@ -78,8 +85,10 @@ claude-chat-dark:
 ### themeList entry
 
 ```ts
-{ key: 'claude-chat-dark', name: 'claude chat dark', accent: '#D97757' }
+{ key: 'claude-chat-dark', name: 'claude chat dark', accent: '#2A2A2A' }
 ```
+
+Note: swatch uses `bg.primary` (#2A2A2A) instead of `accent.primary` to visually distinguish from `claude-code` which also uses terracotta. The warm charcoal swatch with a terracotta border (when selected) communicates "dark claude chat" clearly.
 
 ### Files
 
@@ -89,34 +98,31 @@ claude-chat-dark:
 
 ### Skeleton Pulse Component
 
-Create a reusable `SkeletonPulse` component — an `Animated.View` with looping opacity pulse (0.3 → 0.7 → 0.3). Uses `useNativeDriver: true` for smooth animation regardless of JS thread load. Configurable `width`, `height`, `borderRadius`. Uses `colors.border.default` as background.
+Create a reusable `SkeletonPulse` component — an `Animated.View` with looping opacity pulse (0.3 → 0.7 → 0.3). Uses `useNativeDriver: true` for smooth animation regardless of JS thread load. Configurable `width`, `height`, `borderRadius`. Uses `colors.border.default` as background. Store the `Animated.CompositeAnimation` ref and call `.stop()` in `useEffect` cleanup to prevent warnings on fast unmount.
 
 **File:** `mobile/src/components/SkeletonPulse.tsx`
 
 ### Home Screen Skeletons
 
-Replace the current loading state (`ActivityIndicator` + "scanning sessions...") with 3 skeleton session cards matching the shape of `SessionRow` — rounded rectangle with inner lines for title, status row, and message preview.
+Replace the current loading state (`ActivityIndicator` + "scanning sessions...") with 3 skeleton session cards matching the shape of `SessionRow` — rounded rectangle with inner lines for title, status row, and message preview. Always render exactly 3 skeleton cards regardless of screen size — this is a brief loading state, not a permanent placeholder. Export `SessionSkeleton` from `SkeletonPulse.tsx`.
 
-**File:** `mobile/app/index.tsx` (user approved this worker to modify it) and `mobile/src/components/SkeletonPulse.tsx` (exports `SessionSkeleton`)
-
-### Pull-to-Refresh
-
-Add `RefreshControl` to the home screen's `SectionList`. Calls existing `loadSessions()`. Uses `colors.accent.primary` as tint color.
-
-**File:** `mobile/app/index.tsx`
+**File:** `mobile/app/index.tsx` and `mobile/src/components/SkeletonPulse.tsx`
 
 ### Streaming Throttle (Animation Jank Fix)
 
 **Problem:** `useStreaming.ts` creates a new message object on every `stream_event` delta. During heavy workloads (rapid tool use, long outputs), this triggers a re-render cascade through the entire message list, causing visible UI jank.
 
-**Fix:** Throttle stream delta updates to ~15fps (~66ms) inside the existing `useMemo` in `useStreaming.ts`. Mechanism:
+**Fix:** Restructure from `useMemo` to `useRef` + `useState` with an explicit flush timer. Mechanism:
 
-1. Continue processing all events into `streamBufferRef` on every trigger (no data loss)
-2. Before producing a new array reference for `stream_event` deltas, check `Date.now() - lastFlushRef.current < 66` — if within throttle window, return previous `messagesRef.current` without creating new objects
-3. When outside the throttle window, produce the new array with updated content and set `lastFlushRef.current = Date.now()`
-4. `assistant` (final), `user`, `result`, and `system` event types always process immediately — throttling only applies to `stream_event` deltas
+1. Replace `useMemo` with a `useEffect` that watches `eventsLength`
+2. On each trigger, process all new events into `streamBufferRef` and the internal `resultRef` array (same `processEvent` logic)
+3. For `stream_event` deltas: check if within throttle window (66ms). If so, schedule a trailing-edge flush via `setTimeout(flush, 66)` stored in `pendingFlushRef`. If outside window, flush immediately
+4. `flush` sets `messagesState` (the `useState` value) to the current `resultRef` snapshot and updates `lastFlushRef.current = Date.now()`. Clear any pending timeout
+5. `assistant`, `user`, `result`, and `system` events always flush immediately — throttling only applies to `stream_event` deltas
+6. Cleanup: clear `pendingFlushRef` timeout on unmount
+7. Use an incrementing module-scoped counter for message IDs (`let nextId = 0; id: \`stream-${nextId++}\``) instead of `Date.now()` to prevent collision under throttle
 
-This keeps the `useMemo` structure intact (no restructuring to useState/useEffect), keeps `AnimatedDots` smooth (already on native driver), and prevents JS thread saturation from rapid re-renders.
+The trailing-edge flush guarantees that if Claude pauses mid-stream, the latest buffered content renders within 66ms of the last delta — no stale text during pauses.
 
 **File:** `mobile/src/hooks/useStreaming.ts`
 
@@ -124,7 +130,7 @@ This keeps the `useMemo` structure intact (no restructuring to useState/useEffec
 
 ### Overview
 
-Replace 4 hardcoded Tailwind color classes with `useColors()` style props.
+Replace 4 hardcoded Tailwind color classes with `useColors()` style props. Remove color classes from `className`, keep layout classes only (`text-xs`, `flex-row`, `items-center`, `gap-1.5`, `w-2`, `h-2`, `rounded-full`). Apply all colors via `style` prop to avoid NativeWind class/style conflicts.
 
 ### Mapping
 
@@ -145,6 +151,7 @@ Colors remain green/red (universal connected/disconnected signal) but are adjust
 
 - **Session notification badges** — requires bridge-side changes. Specced separately at `docs/specs/session-notification-badges.md`.
 - **PermissionBanner on home screen** — dependent on session notification badges.
+- **Pull-to-refresh** — the home screen already auto-refreshes every 5s. Not needed.
 
 ## File Ownership Summary
 
@@ -152,8 +159,8 @@ Colors remain green/red (universal connected/disconnected signal) but are adjust
 |------|--------|
 | `mobile/src/components/SettingsSheet.tsx` | create |
 | `mobile/src/components/SkeletonPulse.tsx` | create |
+| `mobile/src/components/ThemePicker.tsx` | delete |
 | `mobile/src/components/ConnectionBadge.tsx` | modify |
 | `mobile/src/constants/colors.ts` | modify |
 | `mobile/src/hooks/useStreaming.ts` | modify |
-| `mobile/app/index.tsx` | modify (import swap + skeletons + pull-to-refresh) |
-| `mobile/app/_layout.tsx` | no changes needed (originally planned for PermissionBanner, now descoped) |
+| `mobile/app/index.tsx` | modify (import swap + skeleton loading state) |
