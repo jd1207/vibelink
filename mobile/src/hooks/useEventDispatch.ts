@@ -122,6 +122,8 @@ export function useEventDispatch(sessionId: string) {
         const reason = data.reason as string | undefined;
         if (reason === 'taken_over') {
           setWatchState(sessionId, 'ended', 'session taken over by another device');
+        } else if (reason === 'terminal_resumed') {
+          setWatchState(sessionId, 'ended', 'continued in terminal');
         } else if (reason === 'process_exited') {
           setWatchState(sessionId, 'ended');
         } else {
