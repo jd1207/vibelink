@@ -21,7 +21,7 @@ function findXauthority(): string {
   } catch {
     // dir not readable
   }
-  return `${process.env.HOME || "/home/deck"}/.Xauthority`;
+  return `${process.env.HOME || "/tmp"}/.Xauthority`;
 }
 
 // minimal env for x11 subprocesses (ffmpeg, xdotool, xprop)
@@ -31,9 +31,9 @@ export function x11Env(): Record<string, string> {
     PATH: process.env.PATH || "/usr/bin:/bin",
     DISPLAY: ":0",
     XAUTHORITY: findXauthority(),
-    HOME: process.env.HOME || "/home/deck",
-    USER: process.env.USER || "deck",
-    LOGNAME: process.env.LOGNAME || "deck",
+    HOME: process.env.HOME || "/tmp",
+    USER: process.env.USER || "user",
+    LOGNAME: process.env.LOGNAME || "user",
     LANG: process.env.LANG || "en_US.UTF-8",
   };
 }
